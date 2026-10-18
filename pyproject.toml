@@ -1,0 +1,23 @@
+[build-system]
+requires = ["setuptools>=68"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "pse-triglav"
+version = "0.0.1"
+description = "PSE Triglav: agents that measure who pushes their theta; distributed oversight on the PSE framework"
+readme = "README.md"
+license = { text = "GPL-3.0-or-later" }
+authors = [{ name = "Andrej Ristić" }]
+requires-python = ">=3.10"
+dependencies = []
+
+[project.urls]
+Homepage = "https://www.zeravatech.ca"
+Source = "https://github.com/zeravatechnologies/pse-triglav"
+
+[project.scripts]
+triglav = "triglav.__main__:main"
+
+[tool.setuptools]
+packages = ["triglav"]
