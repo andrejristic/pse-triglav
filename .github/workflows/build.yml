@@ -43,6 +43,7 @@ jobs:
           --add-data "triglav/screen/app.js;triglav/screen"
           --add-data "triglav/vendor/vid_input/defaults.toml;triglav/vendor/vid_input"
           --collect-submodules triglav
+          --exclude-module triglav.shell.adapters
           packaging/triglav_entry.py
       - run: dist\triglav.exe textbook status
       # Code signing with SignPath Foundation (free for open source): switched

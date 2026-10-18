@@ -8,6 +8,8 @@ PKG="$ROOT/pse-triglav_${VERSION}_all"
 mkdir -p "$PKG/DEBIAN" "$PKG/usr/lib/python3/dist-packages" "$PKG/usr/bin" \
          "$PKG/usr/lib/systemd/user" "$PKG/usr/share/doc/pse-triglav"
 cp -r triglav "$PKG/usr/lib/python3/dist-packages/"
+# the adapters' checkpoint stays out of public packages until the adapters exist
+rm -rf "$PKG/usr/lib/python3/dist-packages/triglav/shell/adapters"
 find "$PKG" -name "__pycache__" -type d -prune -exec rm -rf {} +
 cat > "$PKG/usr/bin/triglav" <<'SH'
 #!/usr/bin/python3

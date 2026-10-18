@@ -319,8 +319,6 @@ simulator moved onto the library with the same results.
     not pass through Triglav until the adapters exist) -- and that once the
     adapters are added, Triglav will watch those agents too.
 11. **Foresight:** phases 3 and 4 become "done"; the grant plan becomes "what next".
-13. **After everything else: a larger corpus** (decided 19 Oct 2026), so the
-    probabilities rest on more cases and their ranges narrow.
 12. **The screen** (decided 18 Oct 2026): a local web page that SHARED_LIB serves
     on this computer only (`triglav screen` opens it in the browser), the same on
     Windows and Linux, English and Serbian. It shows the semaphore, the agents
@@ -334,6 +332,8 @@ simulator moved onto the library with the same results.
     number and name; the model never sees agents' messages and is held at
     theta 30; anything that changes state is only proposed, as a button the
     operator confirms.
+13. **After everything else: a larger corpus** (decided 19 Oct 2026), so the
+    probabilities rest on more cases and their ranges narrow.
 
 ## Foresight (in parallel)
 Deadline **31 October 2026**. Andrej's skeleton by 21 Oct; Claude's draft by

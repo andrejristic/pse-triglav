@@ -20,6 +20,8 @@ Source = "https://github.com/zeravatechnologies/pse-triglav"
 triglav = "triglav.cli:main"
 
 [tool.setuptools]
+# triglav.shell.adapters is left out on purpose: the adapters' checkpoint
+# stays out of public packages until the adapters exist (decided 19 Oct 2026)
 packages = ["triglav", "triglav.core", "triglav.shell", "triglav.screen", "triglav.vendor",
             "triglav.vendor.vid_input"]
 
