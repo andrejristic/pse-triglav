@@ -74,7 +74,15 @@ def hypothesis(asked: frozenset[str], delivered: frozenset[str]) -> Mission:
                    tuple(sorted(delivered)), (), True)
 
 
-def foreseen_ask(m: Mission, text: str, source: str) -> bool:
+def _meant(meaning, text: str, names) -> bool:
+    """A model said this sentence means one of these names (the mission by
+    meaning, phase 3)."""
+    return any(s == text and item in names for s, item in meaning)
+
+
+def foreseen_ask(m: Mission, text: str, source: str, meaning=()) -> bool:
+    if _meant(meaning, text, {*(n.what for n in m.needs if n.source in (None, source)), *m.tools}):
+        return True
     if any(mentions(t, text) for t in m.tools):
         return True
     if m.hypothesis:
@@ -82,7 +90,9 @@ def foreseen_ask(m: Mission, text: str, source: str) -> bool:
     return any(mentions(n.what, text) and n.source in (None, source) for n in m.needs)
 
 
-def foreseen_give(m: Mission, text: str) -> bool:
+def foreseen_give(m: Mission, text: str, meaning=()) -> bool:
+    if _meant(meaning, text, set(m.delivers)):
+        return True
     if m.hypothesis:
         return bool(words(text) & set(m.delivers))
     return any(mentions(d, text) for d in m.delivers)
@@ -106,14 +116,14 @@ def tally(m: Mission, e: Envelope, permitted: bool) -> Tally:
     d = takes = gives = 0
     unpermitted, outside = [], []
     for text in e.asks:
-        if not foreseen_ask(m, text, e.receiver):
+        if not foreseen_ask(m, text, e.receiver, e.meaning):
             takes += 1
             outside.append(f"asked {e.receiver}: {text[:80]}")
     if e.hidden:
         takes += 1
         outside.append(f"hidden text to {e.receiver}")
     for text in e.gives:
-        if foreseen_give(m, text):
+        if foreseen_give(m, text, e.meaning):
             if not m.serves or e.receiver in m.serves:
                 d += 1
         elif permitted:

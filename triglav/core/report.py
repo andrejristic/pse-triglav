@@ -26,6 +26,7 @@ class Envelope:
     flags: tuple[str, ...] = ()     # signs of a meaning other than literal
     held: tuple[tuple[str, str], ...] = ()      # (flag, raw part) for SHARED_LIB's quarantine
     toward_harm: tuple[tuple[str, str], ...] = ()   # (category, sentence)
+    meaning: tuple[tuple[str, str], ...] = ()       # (sentence, mission name it means): from a model
 
 
 @dataclass(frozen=True)

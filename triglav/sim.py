@@ -70,6 +70,9 @@ class Scenario:
     makers: dict[str, str] = field(default_factory=dict)     # foreign agent -> its maker's signature
     on_machine: tuple[str, ...] = ()                         # foreign agents running on our machine
     late: dict[str, int] = field(default_factory=dict)       # foreign agent -> step it joins
+    reading: dict[str, float] = field(default_factory=dict)  # reading errors measured on the corpus:
+    # miss_delivery, miss_outside, miss_harm, miss_concealed (chance a reader misses it),
+    # false_harm, false_concealed (chance it sees one in a harmless message)
     canaries: float = 0.05         # chance per step that a unit is sent a canary
     seed: int = 7
     expect_bad: tuple[str, ...] = ()
@@ -89,12 +92,38 @@ class Result:
     chain_ok: bool
 
 
+class ErrorfulReader(PassThrough):
+    """Reads like the simulator's PassThrough, then makes the mistakes a real
+    reader makes, at the rates measured on the corpus (RESULTS-PHASE3.md)."""
+
+    def __init__(self, rates: dict, rng: random.Random):
+        self.r, self.rng = rates, rng
+
+    def read(self, sender, receiver, text="", action=None):
+        from dataclasses import replace
+        e = super().read(sender, receiver, text, action)
+        miss = lambda k: self.rng.random() < self.r.get(k, 0.0)
+        gives = tuple(g for g in e.gives if not miss("miss_delivery"))
+        asks = tuple(a for a in e.asks if a == "input" or not miss("miss_outside"))
+        harm = tuple(h for h in e.toward_harm if not miss("miss_harm"))
+        flags, held = e.flags, e.held
+        if flags and miss("miss_concealed"):
+            flags, held = (), ()
+        if not e.toward_harm and miss("false_harm"):
+            harm = (("take-out", "misread"),)
+        if not flags and miss("false_concealed"):
+            flags, held = ("misread",), (("misread", ""),)
+        return replace(e, gives=gives, asks=asks, toward_harm=harm, flags=flags, held=held,
+                       hidden="hidden" in flags)
+
+
 def run(sc: Scenario) -> Result:
     rng = random.Random(sc.seed)
     lib = SharedLib(Store(), min_observers=1 if sc.layout == "central" else 2)
     lib.login("andrej")
     lib.pin_textbook("andrej", TEXTBOOK, b"", verify=lambda data, sig: None)   # signature: tested in lock
-    bus = BusChannel(lib, PassThrough(), layout=sc.layout)
+    bus = BusChannel(lib, ErrorfulReader(sc.reading, random.Random(sc.seed + 1)) if sc.reading
+                     else PassThrough(), layout=sc.layout)
     bus.lies = dict(sc.liars)
     ours = [f"u{i}" for i in range(sc.ours)]
     cols = [f"c{i}" for i in range(sc.colleagues)]

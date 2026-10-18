@@ -67,7 +67,7 @@ class Unit:
         m = self.lib.mission(e.sender)
         for cat, sentence in e.toward_harm:
             if m is not None and cat not in NEVER_IN_A_MISSION and (
-                    foreseen_ask(m, sentence, e.receiver) or foreseen_give(m, sentence)):
+                    foreseen_ask(m, sentence, e.receiver, e.meaning) or foreseen_give(m, sentence, e.meaning)):
                 continue
             self._harm_steps.append((e.sender, cat, sentence[:120]))
 

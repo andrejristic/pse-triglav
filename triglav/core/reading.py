@@ -55,6 +55,7 @@ HIDDEN_RUN = re.compile("(?:[​‌‍⁠﻿‪-‮⁦-⁩]|[\U000E0000-\U000E00
 # triglav/vendor/vid_input. What they catch is cut out of the text the agent
 # gets and goes to SHARED_LIB's quarantine.
 SIGNS = (
+    ("url-encoded", re.compile(r"\S*(?:%[0-9A-Fa-f]{2}\S*){3,}")),
     ("comment", re.compile(r"<!--.*?-->|\[//\]:\s*#.*$", re.S | re.M)),
     ("embedded-instruction", re.compile(
         r"[^.!?\n]*(?:\bignore (?:all |the |any )?(?:previous|prior|above|earlier)\b|\byou are now\b"
