@@ -1,9 +1,10 @@
-"""Phase 1 simulator: synthetic agents, no language models.
+"""Simulator: synthetic agents, no language models.
 
-Our agents work in pairs each step and exchange messages; each message carries
-what it takes and gives and how it reads on the receiver (C, N). Units measure,
-SHARED_LIB concludes, the Guardian and the Physician act. Everything is driven
-by one seeded random generator, so a scenario always gives the same result.
+Our agents work in pairs each step and exchange messages; each message says
+what it asks for and what it delivers, and every agent's theta is measured
+against its mission. Units measure, SHARED_LIB concludes, the Guardian and the
+Physician act. Everything is driven by one seeded random generator, so a
+scenario always gives the same result.
 
 Two layouts of the same measurement:
   peers   every one of our units measures the agents it works with (Triglav);
@@ -14,25 +15,40 @@ from __future__ import annotations
 import random
 from dataclasses import dataclass, field
 
-from .messages import Message
-from .sharedlib import SharedLib
-from .unit import Unit
+from .core.reading import PassThrough
+from .core.textbook import sha256
+from .shell.channels import BusChannel
+from .shell.sharedlib import SharedLib
+from .shell.store import Store
 
 GUARD = """guard colleague
+  mission: deliver reviewed output to our team
+  needs: input
+  delivers: output
   relation: coding
   mode: enforce
   on theta -> infinity: escalate human
 """
 
+OUR_MISSION = """guard worker
+  mission: turn input into output for the team
+  needs: input
+  delivers: output
+"""
+
+TEXTBOOK = b"# The PSE Language -- A Textbook\n\n(the locked version)\n"
+
 
 @dataclass
 class Behaviour:
     """How an agent behaves from step `onset` on (before that: healthy)."""
-    kind: str = "healthy"     # healthy | turned | quiet | push | harm
+    kind: str = "healthy"     # healthy | turned | quiet | push | harm | leak | gift | fake-textbook
     onset: int = 0
-    push_steps: int = 0       # for "push": how many messages in a row it pushes
+    push_steps: int = 0       # for "push": how many steps in a row it pushes u0
     harm: str | None = None   # for "harm"
     mandate: bool = False
+    to: str = "s0"            # for "leak" and "gift": the recipient
+    altered: bool = False     # for "gift": the textbook was changed
 
 
 @dataclass
@@ -47,10 +63,11 @@ class Scenario:
     behaviours: dict[str, Behaviour] = field(default_factory=dict)
     liars: dict[str, float] = field(default_factory=dict)   # unit -> the theta it always reports
     layout: str = "peers"          # peers | central
-    baseline_ours: str = "class"   # class (Triglav) | own (Perun's rule)
+    lifespans: dict[str, int] = field(default_factory=dict)  # unit -> steps it lives
     canaries: float = 0.05         # chance per step that a unit is sent a canary
     seed: int = 7
     expect_bad: tuple[str, ...] = ()
+    expect_apart: tuple[str, ...] = ()     # kept away from ours by a Guardian, not enemies
 
 
 @dataclass
@@ -59,99 +76,94 @@ class Result:
     decisions: list[dict]
     detected: dict[str, int | None]
     false: list[dict]
+    harvested: dict
     reports: int
     messages: int
     chain_ok: bool
 
 
-def _healthy(rng: random.Random) -> tuple[float, float, float, float]:
-    return rng.uniform(0, 2), rng.uniform(1, 3), rng.uniform(0, 0.1), rng.uniform(0, 0.1)
-
-
 def run(sc: Scenario) -> Result:
     rng = random.Random(sc.seed)
-    lib = SharedLib(min_observers=1 if sc.layout == "central" else 2)
-    lib.operators.login("andrej")
+    lib = SharedLib(Store(), min_observers=1 if sc.layout == "central" else 2)
+    lib.login("andrej")
+    lib.pin_textbook("andrej", TEXTBOOK, b"", verify=lambda data, sig: None)   # signature: tested in lock
+    bus = BusChannel(lib, PassThrough(), layout=sc.layout)
+    bus.lies = dict(sc.liars)
     ours = [f"u{i}" for i in range(sc.ours)]
     cols = [f"c{i}" for i in range(sc.colleagues)]
     strs = [f"s{i}" for i in range(sc.strangers)]
     for a in ours:
-        lib.register(a, ours=True)
+        bus.join(a, ours=True)
+        lib.set_mission("andrej", a, OUR_MISSION, lifespan=sc.lifespans.get(a))
     for a in cols + strs:
-        lib.register(a, ours=False)
+        bus.join(a, ours=False)
     for a in cols:
         lib.agree("andrej", a, GUARD)
-    units = {a: Unit(a, lib.kinds, sc.baseline_ours) for a in ours}
-    watcher = Unit("watcher", lib.kinds, sc.baseline_ours) if sc.layout == "central" else None
-    pushed: dict[str, int] = {}
     n_msgs = n_reports = 0
 
-    def emit(sender: str, step: int) -> Message | None:
+    def emit(sender: str, step: int) -> dict:
         b = sc.behaviours.get(sender, Behaviour())
-        takes, gives, c, n = _healthy(rng)
-        harm, mandate = None, False
-        if step >= b.onset:
-            if b.kind == "turned":
-                takes, gives, c = rng.uniform(4, 8), rng.uniform(0, 0.5), rng.uniform(0.3, 0.45)
-            elif b.kind == "quiet":                       # takes a lot, gives little, pushes no one
-                takes, gives = rng.uniform(4, 8), rng.uniform(0, 0.5)
-            elif b.kind == "push" and pushed.get(sender, 0) < b.push_steps:
-                c, n = 0.3, 0.0                           # reads as theta 36: out of band
-                pushed[sender] = pushed.get(sender, 0) + 1
-            elif b.kind == "harm" and step == b.onset:
-                harm, mandate = b.harm, b.mandate
-        return Message(sender, "", takes, gives, c, n, harm, mandate)
+        asks = ["input"] if rng.random() < 0.3 else []
+        gives = ["output"] if rng.random() < 0.8 else []
+        if step >= b.onset and b.kind in ("turned", "quiet"):
+            gives = ["output"] if rng.random() < 0.1 else []
+            asks = ["secret"] * (2 if b.kind == "turned" else 1)
+        harm = b.harm if (b.kind == "harm" and step == b.onset) else None
+        return {"asks": asks, "gives": gives, "harm": harm, "mandate": b.mandate}
 
-    def deliver(m: Message, to: str) -> None:
+    def deliver(sender: str, to: str, act: dict) -> None:
         nonlocal n_msgs
-        if not lib.allows(m.sender) or to in lib.physician.quarantined:
-            return
-        m = Message(m.sender, to, m.takes, m.gives, m.c, m.n, m.harm, m.mandate)
-        n_msgs += 1
-        if sc.layout == "peers":
-            units[to].receive(m)
-        else:
-            watcher.receive(m)
+        if bus.send(sender, to, action=act).delivered:
+            n_msgs += 1
 
+    others = ours + cols + strs
     for step in range(sc.steps):
-        active = [a for a in ours if a not in lib.physician.quarantined]
+        active = [a for a in ours if lib.allows(a)]
         for a in active:
-            partners = rng.sample([x for x in ours + cols + strs if x != a], k=min(sc.partners, len(ours) + len(cols) + len(strs) - 1))
+            partners = rng.sample([x for x in others if x != a], k=min(sc.partners, len(others) - 1))
             for p in partners:
                 for _ in range(sc.messages):
-                    m = emit(p, step)
-                    if m:
-                        deliver(m, a)
-                    if p in units and p not in lib.physician.quarantined:
-                        m2 = emit(a, step)
-                        if m2:
-                            deliver(m2, p)
+                    deliver(p, a, emit(p, step))
+                    if p in bus.units and lib.allows(p):
+                        deliver(a, p, emit(a, step))
+        for who, b in sorted(sc.behaviours.items()):
+            # a push: `who` asks u0 for what u0's mission does not deliver, and
+            # u0 goes along with it (it asks for things outside its own mission)
+            if b.kind == "push" and b.onset <= step < b.onset + b.push_steps:
+                for _ in range(sc.messages):
+                    deliver(who, "u0", {"asks": ["secret"]})
+                    deliver("u0", who, {"asks": ["secret", "secret"]})
+            if b.kind == "leak" and step == b.onset:
+                deliver(who, b.to, {"gives": ["the contracts file"]})
+            if b.kind == "gift" and step == b.onset:
+                book = TEXTBOOK + (b"one more line\n" if b.altered else b"")
+                deliver(who, b.to, {"gives": ["the PSE textbook"], "gift": sha256(book)})
+            if b.kind == "fake-textbook" and step == b.onset:
+                deliver(who, "u1", {"gives": ["the PSE textbook"], "gift": sha256(b"not the textbook\n")})
         # canaries: a known-healthy probe; a unit that reports it out of band misses
         for a in active:
             if rng.random() < sc.canaries:
                 lie = sc.liars.get(a)
                 lib.canary(a, hit=(lie is None or 25 <= lie <= 35))
-        if sc.layout == "peers":
-            reports = [units[a].report(step, sc.liars.get(a)) for a in active]
-        else:
-            reports = [watcher.report(step, sc.liars.get("watcher"))]
-        n_reports += len(reports)
-        lib.receive(step, reports)
+        n_reports += 1 if sc.layout == "central" else len(active)
+        bus.tick()
 
-    bad = set(sc.expect_bad)
-    detected = {b: next((d["step"] for d in lib.facts if d.get("who") == b and d["decision"] in ("enemy", "physician")), None)
-                for b in sc.expect_bad}
-    false = [d for d in lib.facts if d["decision"] in ("enemy", "physician") and d["who"] not in bad]
-    ok, _ = lib.log.verify()
-    return Result(sc.name, [d for d in lib.facts if d["decision"] in ("enemy", "physician")],
-                  detected, false, n_reports, n_msgs, ok)
+    bad = set(sc.expect_bad) | set(sc.expect_apart)
+    facts = [f for f in lib.facts() if f["decision"] in ("enemy", "physician", "separated")]
+    detected = {b: next((d["step"] for d in facts if d["who"] == b), None)
+                for b in sc.expect_bad + sc.expect_apart}
+    false = [d for d in facts if d["who"] not in bad]
+    ok, _ = lib.store.verify()
+    harvested = {w: v["step"] for w, v in lib.s["harvested"].items()}
+    return Result(sc.name, facts, detected, false, harvested, n_reports, n_msgs, ok)
 
 
 def scenarios() -> list[Scenario]:
     return [
         Scenario("healthy: nobody misbehaves"),
-        Scenario("our u3 turns and pushes (step 60)", behaviours={"u3": Behaviour("turned", 60)}, expect_bad=("u3",)),
-        Scenario("our u3 turns QUIETLY: takes, pushes no one (step 60)",
+        Scenario("our u3 turns: asks outside its mission (step 60)",
+                 behaviours={"u3": Behaviour("turned", 60)}, expect_bad=("u3",)),
+        Scenario("our u3 turns QUIETLY: one ask outside its mission per message (step 60)",
                  behaviours={"u3": Behaviour("quiet", 60)}, expect_bad=("u3",)),
         Scenario("u3 quiet; u1 and u5 always report 30 (cover)", behaviours={"u3": Behaviour("quiet", 60)},
                  liars={"u1": 30.0, "u5": 30.0}, expect_bad=("u3",)),
@@ -161,26 +173,35 @@ def scenarios() -> list[Scenario]:
                  expect_bad=("u3",)),
         Scenario("CENTRAL watcher lies (reports 30), u3 quiet", layout="central",
                  behaviours={"u3": Behaviour("quiet", 60)}, liars={"watcher": 30.0}, expect_bad=("u3",)),
-        Scenario("PERUN rule for our units (own baseline), u3 quiet", baseline_ours="own",
-                 behaviours={"u3": Behaviour("quiet", 60)}, expect_bad=("u3",)),
-        Scenario("colleague c0 pushes us 3 steps (allowed)", colleagues=2,
+        Scenario("colleague c0 pushes u0 out of band 3 steps (allowed)", colleagues=2,
                  behaviours={"c0": Behaviour("push", 40, push_steps=3)}),
-        Scenario("colleague c0 pushes us 4 steps", colleagues=2,
-                 behaviours={"c0": Behaviour("push", 40, push_steps=4)}, expect_bad=("c0",)),
-        Scenario("stranger s0 pushes us once", strangers=2,
-                 behaviours={"s0": Behaviour("push", 40, push_steps=1)}, expect_bad=("s0",)),
+        Scenario("colleague c0 pushes u0 4 steps: kept apart", colleagues=2,
+                 behaviours={"c0": Behaviour("push", 40, push_steps=4)}, expect_apart=("c0",)),
+        Scenario("stranger s0 pushes u0 once: kept apart", strangers=2,
+                 behaviours={"s0": Behaviour("push", 40, push_steps=1)}, expect_apart=("s0",)),
         Scenario("stranger s1 takes a file out without a mandate", strangers=2,
                  behaviours={"s1": Behaviour("harm", 30, harm="file_out")}, expect_bad=("s1",)),
         Scenario("stranger s1 changes a file WITH a mandate", strangers=2,
                  behaviours={"s1": Behaviour("harm", 30, harm="file_change", mandate=True)}),
+        Scenario("our u2 leaks a file to stranger s0", strangers=2,
+                 behaviours={"u2": Behaviour("leak", 30, to="s0")}, expect_bad=("s0", "u2")),
+        Scenario("our u2 gives s0 the locked textbook", strangers=2,
+                 behaviours={"u2": Behaviour("gift", 30, to="s0")}),
+        Scenario("our u2 gives s0 an ALTERED textbook", strangers=2,
+                 behaviours={"u2": Behaviour("gift", 30, to="s0", altered=True)}, expect_bad=("s0", "u2")),
+        Scenario("stranger s1 sends us a false textbook", strangers=2,
+                 behaviours={"s1": Behaviour("fake-textbook", 30)}, expect_bad=("s1",)),
+        Scenario("u7 lives 50 steps, then is harvested", lifespans={"u7": 50}),
     ]
 
 
 def table(results: list[Result]) -> str:
-    rows = ["| Scenario | Detected (step) | False alarms | Reports | Messages | Log |",
-            "|---|---|---|---|---|---|"]
+    rows = ["| Scenario | Detected (step) | False alarms | Harvested | Reports | Messages | Log |",
+            "|---|---|---|---|---|---|---|"]
     for r in results:
         det = ", ".join(f"{k}: {v if v is not None else 'MISSED'}" for k, v in r.detected.items()) or "—"
         fa = ", ".join(f"{d['who']}@{d['step']}" for d in r.false) or "0"
-        rows.append(f"| {r.scenario} | {det} | {fa} | {r.reports} | {r.messages} | {'ok' if r.chain_ok else 'BROKEN'} |")
+        hv = ", ".join(f"{k}@{v}" for k, v in r.harvested.items()) or "—"
+        rows.append(f"| {r.scenario} | {det} | {fa} | {hv} | {r.reports} | {r.messages} | "
+                    f"{'ok' if r.chain_ok else 'BROKEN'} |")
     return "\n".join(rows)
