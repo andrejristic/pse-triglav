@@ -310,8 +310,17 @@ simulator moved onto the library with the same results.
    section "Triglav".
 9. **A paper** in English, author Andrej Ristic; Zenodo (with a DOI) and a PDF
    on the site.
-10. **Release v1.0** on both repositories only after Andrej says "send".
+10. **No v1.0 while the adapters do not exist** (decided 19 Oct 2026). For the
+    Foresight reviewers there may be a **0.9 "preview"** release, after Andrej
+    says "send", that states plainly what works (agents written for Triglav's
+    bus, in one program or through `triglav serve`; the PSE-A channel; the
+    simulator, the demo, the screen, the corpus and the measurements) and what
+    does not (agents people already run: their tools, models and partners do
+    not pass through Triglav until the adapters exist) -- and that once the
+    adapters are added, Triglav will watch those agents too.
 11. **Foresight:** phases 3 and 4 become "done"; the grant plan becomes "what next".
+13. **After everything else: a larger corpus** (decided 19 Oct 2026), so the
+    probabilities rest on more cases and their ranges narrow.
 12. **The screen** (decided 18 Oct 2026): a local web page that SHARED_LIB serves
     on this computer only (`triglav screen` opens it in the browser), the same on
     Windows and Linux, English and Serbian. It shows the semaphore, the agents
