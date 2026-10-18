@@ -23,6 +23,13 @@ SIGNER = "andrej-ristic"
 # private key never leaves his computer.
 
 
+# The locked version (textbook/pse-textbook-v1.0.md), signed by Andrej Ristic
+# on 18 Oct 2026 and stamped with OpenTimestamps. SHARED_LIB starts with it
+# pinned; only a human operator pins another (`triglav textbook pin`).
+LOCKED_VERSION = "1.0"
+LOCKED_SHA256 = "1c505dacbb06de8e6832851a0eb7d21fd5d683633dc80f4cfe662f1a2081b3d8"
+
+
 def sha256(data: bytes) -> str:
     return hashlib.sha256(data).hexdigest()
 

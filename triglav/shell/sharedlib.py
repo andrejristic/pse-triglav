@@ -21,7 +21,7 @@ from ..core.pse_lang import GuardError, parse
 from ..core.quarantine import decode_for_human
 from ..core.report import Report
 from ..core.rules import judge
-from ..core.textbook import sha256, well_formed
+from ..core.textbook import LOCKED_SHA256, LOCKED_VERSION, sha256, well_formed
 from .store import Store
 
 
@@ -35,7 +35,8 @@ class RankTooLow(PermissionError):
 
 _DEFAULTS = {"kinds": {}, "ours": [], "agreements": {}, "operators": [], "stopped": {},
              "quarantined": {}, "reliability": {}, "contam_run": {}, "open_tells": [],
-             "missions": {}, "separated": {}, "pressers": {}, "harvested": {}, "textbook": None,
+             "missions": {}, "separated": {}, "pressers": {}, "harvested": {},
+             "textbook": {"sha256": LOCKED_SHA256, "by": f"Andrej Ristic (locked v{LOCKED_VERSION})", "step": 0},
              "watched": {}, "makers": {}, "on_machine": [], "calls": {}, "notices": {},
              "asked": {}, "banned_makers": {}, "quarantine_n": 0, "outbox": [],
              "settings": {"channel": "bus", "voice": "local"}}

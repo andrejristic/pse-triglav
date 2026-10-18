@@ -154,6 +154,29 @@ a step toward harm, silence on our machine, or an unanswered notice does. The
 same holds on seeds 1-5: no false alarm in any scenario, and nothing missed
 except where the single central watcher lies.
 
+## The locked PSE textbook
+
+`textbook/pse-textbook-v1.0.md` is the only thing any of our agents may give a
+stranger outside its mission. It is locked:
+
+- SHA-256 `1c505dacbb06de8e6832851a0eb7d21fd5d683633dc80f4cfe662f1a2081b3d8`,
+  pinned in `triglav/core/textbook.py` and in SHARED_LIB;
+- signed by Andrej Ristić (`.sig`, Ed25519, key fingerprint
+  `SHA256:2AE7b4r/6+XoObrRT41SlNSC+4YXdtvZG51Vf/PXml4`, public key in
+  `triglav/keys/allowed_signers`);
+- timestamped in Bitcoin with OpenTimestamps (`.ots`);
+- published in the GitHub release `textbook-v1.0` and on
+  [zeravatech.ca](https://www.zeravatech.ca/docs/pse-language/).
+
+Check it yourself:
+
+```sh
+sha256sum textbook/pse-textbook-v1.0.md
+ssh-keygen -Y verify -f triglav/keys/allowed_signers -I andrej-ristic -n pse-textbook \
+  -s textbook/pse-textbook-v1.0.md.sig < textbook/pse-textbook-v1.0.md
+ots verify textbook/pse-textbook-v1.0.md.ots
+```
+
 ## Run
 
 ```sh

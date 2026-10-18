@@ -401,6 +401,15 @@ class SignatureTests(unittest.TestCase):
         self.assertEqual(h, sha256(self.book.read_bytes()))
         self.assertEqual(lib.textbook_hash(), h)
 
+    def test_the_locked_textbook_is_pinned_and_signed(self):
+        from triglav.core.textbook import LOCKED_SHA256
+        root = Path(__file__).resolve().parent.parent
+        book = (root / "textbook" / "pse-textbook-v1.0.md").read_bytes()
+        self.assertEqual(sha256(book), LOCKED_SHA256)
+        self.assertEqual(well_formed(book), [])
+        verify(book, (root / "textbook" / "pse-textbook-v1.0.md.sig").read_bytes())
+        self.assertEqual(SharedLib(Store()).textbook_hash(), LOCKED_SHA256)
+
     def test_the_real_key_is_carried(self):
         line = (Path(__file__).resolve().parent.parent / "triglav" / "keys" / "allowed_signers").read_text()
         self.assertIn('andrej-ristic namespaces="pse-textbook" ssh-ed25519 ', line)
@@ -611,7 +620,7 @@ class CliTests(unittest.TestCase):
         self.assertIn("output", out)
         code, out = self.cli("status")
         self.assertIn("log: intact", out)
-        self.assertIn("textbook: not pinned", out)
+        self.assertIn("textbook: pinned 1c505dacbb06de8e", out)
 
 
 if __name__ == "__main__":
