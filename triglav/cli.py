@@ -31,7 +31,7 @@ def home() -> Path:
 
 
 def open_lib() -> SharedLib:
-    return SharedLib(Store(str(home() / "triglav.sqlite")))
+    return SharedLib(Store(str(home() / "triglav.sqlite")), key_path=home() / "installation.key")
 
 
 def session() -> str | None:
@@ -135,6 +135,35 @@ def cmd_textbook(a, lib):
     sig = Path(a.sig or a.file + ".sig").read_bytes()
     h = lib.pin_textbook(op, data, sig)
     print(f"textbook pinned: sha256 {h} (signature checked, by {op})")
+
+
+def cmd_serve(a, lib):
+    from .shell.server import make_server
+    lib.store.close()
+    srv, where = make_server(home(), force_tcp=a.tcp)
+    how = where.get("unix") or f"127.0.0.1:{where['port']} (token in {home() / 'serve.json'})"
+    print(f"SHARED_LIB of installation {srv.lib.installation} is listening on {how}; Ctrl+C stops it")
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.server_close()
+
+
+def cmd_link(a, lib):
+    if a.action == "show":
+        print(f"this installation: {lib.installation}")
+        print(f"its public key (give it to the other computer's operator): {lib.installation_key}")
+        for k, v in sorted(lib.s["linked"].items(), key=lambda kv: kv[1]["name"]):
+            print(f"linked: {v['name']} ({v['id']}), by {v['by']}")
+        return
+    op = need_operator(lib)
+    if a.action == "add":
+        iid = lib.link(op, a.value, a.name or a.value[:16])
+        print(f"linked installation {iid}: its units count as ours here. Do the same on the other computer.")
+    else:
+        print("unlinked" if lib.unlink(op, a.value) else f"no linked installation {a.value}")
 
 
 def cmd_revoke(a, lib):
@@ -299,6 +328,14 @@ def build() -> argparse.ArgumentParser:
     tb.add_argument("file", nargs="?", help="pin: pse-textbook-vX.Y.md")
     tb.add_argument("--sig", help="pin: the signature (default FILE.sig)")
     tb.set_defaults(fn=cmd_textbook)
+    sv = sub.add_parser("serve", help="run SHARED_LIB as its own process on this computer")
+    sv.add_argument("--tcp", action="store_true", help="127.0.0.1 with a token instead of a Unix socket")
+    sv.set_defaults(fn=cmd_serve)
+    lk = sub.add_parser("link", help="link another installation (a human, on both ends)")
+    lk.add_argument("action", choices=["show", "add", "remove"])
+    lk.add_argument("value", nargs="?", help="add: the other installation's public key; remove: its ID")
+    lk.add_argument("--name", help="add: a name for it")
+    lk.set_defaults(fn=cmd_link)
     r = sub.add_parser("revoke", help="end an agreement with a colleague")
     r.add_argument("agent")
     r.set_defaults(fn=cmd_revoke)
@@ -339,7 +376,7 @@ def main(argv: list[str] | None = None) -> int:
     lib = open_lib()
     try:
         a.fn(a, lib)
-    except (NotAnOperator, RankTooLow, GuardError, SignatureError, KeyError, FileNotFoundError) as err:
+    except (NotAnOperator, RankTooLow, GuardError, SignatureError, KeyError, FileNotFoundError, ValueError) as err:
         print(f"triglav: {err}", file=sys.stderr)
         return 2
     finally:

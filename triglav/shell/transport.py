@@ -25,5 +25,6 @@ class InProcess:
     def capabilities(self) -> dict:
         return {"transport": "in-process", "separate_process": False, "signed_reports": False}
 
-    def deliver(self, step: int, reports: list[Report]) -> list[dict]:
-        return self.lib.receive(step, reports)
+    def deliver(self, step: int, signed: list[dict]) -> list[dict]:
+        """`signed`: reports as units send them (Unit.signed)."""
+        return self.lib.receive_signed(step, signed)

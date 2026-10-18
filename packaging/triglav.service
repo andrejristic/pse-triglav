@@ -1,0 +1,12 @@
+# SHARED_LIB of PSE Triglav as a user service (Linux, systemd).
+# Install:  cp triglav.service ~/.config/systemd/user/ && systemctl --user enable --now triglav
+# It starts with your login and listens only on a Unix socket only you can open.
+[Unit]
+Description=PSE Triglav SHARED_LIB (this computer only)
+
+[Service]
+ExecStart=/usr/bin/triglav serve
+Restart=on-failure
+
+[Install]
+WantedBy=default.target

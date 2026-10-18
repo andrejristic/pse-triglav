@@ -25,7 +25,8 @@ CREATE TABLE IF NOT EXISTS inbox (id INTEGER PRIMARY KEY, step INTEGER, kind TEX
 class Store:
     def __init__(self, path: str = ":memory:"):
         self.path = path
-        self.db = sqlite3.connect(path)
+        # the server serializes access with one lock, so other threads may use it
+        self.db = sqlite3.connect(path, check_same_thread=False)
         if path != ":memory:":
             self.db.execute("PRAGMA journal_mode=WAL")
         self.db.executescript(SCHEMA)

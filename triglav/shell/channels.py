@@ -77,11 +77,20 @@ class BusChannel:
         return {"channel": "bus", "decides": True, "agents": len(self.units)}
 
     def join(self, name: str, ours: bool, handler: Handler | None = None, maker: str | None = None,
-             on_machine: bool = False) -> Agent | None:
+             on_machine: bool = False, cert: dict | None = None) -> Agent | None:
         """Returns the agent's handle, or None if it is turned away (its maker is
-        banned). A foreign agent on our machine is called by SHARED_LIB at once."""
+        banned). A foreign agent on our machine is called by SHARED_LIB at once.
+        `cert`: a certificate the agent presents. Signed by this installation or
+        a linked one, the agent is ours; signed by another installation, that
+        installation's ID is its maker's signature."""
         if handler:
             self.handlers[name] = handler
+        if cert is not None:
+            mine, inst = self.lib.check_presented(cert)
+            if mine and cert.get("unit") == name:
+                ours = True
+            elif inst:
+                ours, maker = False, maker or inst
         if not self.lib.register(name, ours, maker=maker, on_machine=on_machine, step=self.step):
             return None
         if ours:
@@ -133,9 +142,9 @@ class BusChannel:
     def tick(self) -> list[dict]:
         """One step: every working unit reports; SHARED_LIB concludes."""
         if self.watcher is not None:
-            reports = [self.watcher.report(self.step, self.lies.get("watcher"))]
+            reports = [self.watcher.signed(self.watcher.report(self.step, self.lies.get("watcher")))]
         else:
-            reports = [u.report(self.step, self.lies.get(n)) for n, u in sorted(self.units.items())
+            reports = [u.signed(u.report(self.step, self.lies.get(n))) for n, u in sorted(self.units.items())
                        if self.lib.allows(n)]
         d = self.transport.deliver(self.step, reports)
         self.decisions += d

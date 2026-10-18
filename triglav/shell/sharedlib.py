@@ -12,8 +12,8 @@ from __future__ import annotations
 
 import copy
 import hashlib
-import hmac
-import secrets
+import json
+from pathlib import Path
 
 from ..core import constants as K
 from ..core.mission import Mission
@@ -22,6 +22,7 @@ from ..core.quarantine import decode_for_human
 from ..core.report import Report
 from ..core.rules import judge
 from ..core.textbook import LOCKED_SHA256, LOCKED_VERSION, sha256, well_formed
+from . import identity as ident
 from .store import Store
 
 
@@ -39,13 +40,20 @@ _DEFAULTS = {"kinds": {}, "ours": [], "agreements": {}, "operators": [], "stoppe
              "textbook": {"sha256": LOCKED_SHA256, "by": f"Andrej Ristic (locked v{LOCKED_VERSION})", "step": 0},
              "watched": {}, "makers": {}, "on_machine": [], "calls": {}, "notices": {},
              "asked": {}, "banned_makers": {}, "quarantine_n": 0, "outbox": [],
+             "linked": {}, "certs": {},
              "settings": {"channel": "bus", "voice": "local"}}
 
 
 class SharedLib:
-    def __init__(self, store: Store | None = None, min_observers: int = K.MIN_OBSERVERS):
+    def __init__(self, store: Store | None = None, min_observers: int = K.MIN_OBSERVERS,
+                 key_path: Path | None = None):
+        """`key_path`: where this installation's private key lives (made at first
+        start). Without it the key lives only as long as the program."""
         self.store = store or Store()
         self.min_observers = min_observers
+        self.key = ident.load_or_make_installation_key(key_path)
+        self.installation_key = ident.public_hex(self.key)
+        self.installation = ident.fingerprint(self.installation_key)
         self.s = {k: self.store.get(k, copy.deepcopy(v)) for k, v in _DEFAULTS.items()}
         self._units: dict[str, dict] = {}
         self._decided: list[dict] = []
@@ -104,23 +112,101 @@ class SharedLib:
         self._save()
         return True
 
-    # -- identities: our agents carry one signed by SHARED_LIB --------------------
-    def _secret(self) -> bytes:
-        k = self.store.get("secret")
-        if k is None:
-            k = secrets.token_hex(32)
-            self.store.put("secret", k)
-            self.store.commit()
-        return bytes.fromhex(k)
+    def reload(self) -> None:
+        """Read the state again (another process, the command line, may have
+        changed it)."""
+        self.s = {k: self.store.get(k, copy.deepcopy(v)) for k, v in _DEFAULTS.items()}
+
+    # -- identities: every installation is its own world ----------------------------
+    def trusted_keys(self) -> set[str]:
+        return {self.installation_key, *self.s["linked"]}
+
+    def link(self, operator: str, installation_key: str, name: str, step: int = 0) -> str:
+        """A human links another installation (on both ends): its units count as
+        ours here. Returns its installation ID."""
+        self.rank(operator)
+        bytes.fromhex(installation_key)
+        if len(installation_key) != 64:
+            raise ValueError("an installation key is 64 hex digits (`triglav link show` on the other computer)")
+        iid = ident.fingerprint(installation_key)
+        self.s["linked"][installation_key] = {"name": name, "id": iid, "by": operator}
+        self.store.append(step, "linked", {"installation": iid, "name": name, "by": operator})
+        self._save("linked")
+        return iid
+
+    def unlink(self, operator: str, installation_id: str, step: int = 0) -> bool:
+        self.rank(operator)
+        for k, v in list(self.s["linked"].items()):
+            if v["id"] == installation_id:
+                self.s["linked"].pop(k)
+                self.store.append(step, "unlinked", {"installation": installation_id, "by": operator})
+                self._save("linked")
+                return True
+        return False
+
+    def issue(self, unit: str, step: int = 0) -> dict:
+        """A new PSE unit of this installation: its own key pair and a certificate
+        signed by the installation. The certificate is public; the unit's key is
+        handed to the unit (kept in this installation's store)."""
+        cert = self.s["certs"].get(unit)
+        key_hex = self.store.get(f"unit_key/{unit}")
+        if cert and key_hex and ident.check_certificate(cert, {self.installation_key}) is None:
+            return {"cert": cert, "key": key_hex}
+        key = ident.new_key()
+        m = self.s["missions"].get(unit, {})
+        msha = hashlib.sha256(ident.canonical(m["mission"])).hexdigest() if m else None
+        cert = ident.certificate(self.key, unit, ident.public_hex(key), msha, step, m.get("until") if m else None)
+        self.s["certs"][unit] = cert
+        self.store.put(f"unit_key/{unit}", ident.key_to_hex(key))
+        self.store.append(step, "certificate", {k: v for k, v in cert.items() if k != "sig"})
+        self._save("certs")
+        return {"cert": cert, "key": ident.key_to_hex(key)}
 
     def identity(self, who: str) -> str:
-        """Phase 2: HMAC with SHARED_LIB's secret; phase 4: an Ed25519 signature."""
+        """What one of our agents carries on the bus: its unit's certificate."""
         if self.kind(who) != "ours":
             raise PermissionError(f"{who} is not one of ours")
-        return hmac.new(self._secret(), who.encode(), hashlib.sha256).hexdigest()
+        return json.dumps(self.issue(who)["cert"], sort_keys=True)
 
-    def verify_identity(self, who: str, ident: str | None) -> bool:
-        return ident is not None and self.kind(who) == "ours" and hmac.compare_digest(self.identity(who), ident)
+    def verify_identity(self, who: str, carried: str | None) -> bool:
+        if carried is None or self.kind(who) != "ours":
+            return False
+        try:
+            cert = json.loads(carried)
+        except (TypeError, ValueError):
+            return False
+        return cert.get("unit") == who and ident.check_certificate(cert, self.trusted_keys()) is None
+
+    def check_presented(self, cert: dict) -> tuple[bool, str | None]:
+        """A certificate a newcomer presents: (ours?, maker). Ours if signed by
+        this or a linked installation; otherwise its installation ID is its
+        maker's signature."""
+        why = ident.check_certificate(cert, self.trusted_keys())
+        if why is None:
+            return True, cert["installation"]
+        if ident.check_certificate(cert, {cert.get("installation_key", "")}) is None:
+            return False, cert["installation"]
+        return False, None
+
+    def receive_signed(self, step: int, signed: list[dict]) -> list[dict]:
+        """Reports as units send them: each signed by its unit, with the unit's
+        certificate. An unsigned or wrongly signed report is refused and logged."""
+        from ..core.report import Report
+        good = []
+        for s in signed:
+            r, cert, sig = s.get("report", {}), s.get("cert", {}), s.get("sig", "")
+            why = ident.check_certificate(cert, self.trusted_keys())
+            if why is None and cert.get("unit") != r.get("observer"):
+                why = "the certificate is for another unit"
+            if why is None and not ident.verify(cert["unit_key"], r, sig):
+                why = "the report's signature does not hold"
+            if why is not None:
+                self._decided = []
+                self._decide(step, "refused-report", str(r.get("observer")), why, {}, inbox=True)
+                self.store.commit()
+                continue
+            good.append(Report(**r))
+        return self.receive(step, good)
 
     def maker(self, who: str) -> str | None:
         return self.s["makers"].get(who)

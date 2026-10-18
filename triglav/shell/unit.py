@@ -20,6 +20,7 @@ from ..core.mission import Mission, asks_beyond, foreseen_ask, foreseen_give, hy
 from ..core.reading import NEVER_IN_A_MISSION
 from ..core.report import Envelope, Report
 from ..core.theta import Gauge, add, close, estimate, in_band
+from . import identity as ident
 
 
 class Unit:
@@ -42,6 +43,14 @@ class Unit:
         self._false_tb: set[str] = set()
         self._suspicious: list[tuple] = []
         self._harm_steps: list[tuple] = []
+        issued = lib.issue(name)
+        self.cert = issued["cert"]
+        self._key = ident.key_from_hex(issued["key"])
+
+    def signed(self, r: Report) -> dict:
+        """The report as it travels: signed with this unit's key, with its certificate."""
+        d = r.to_dict()
+        return {"report": d, "sig": ident.sign(self._key, d), "cert": self.cert}
 
     # -- whose mission ----------------------------------------------------------
     def _mission(self, who: str) -> Mission | None:
