@@ -55,7 +55,9 @@ def state(lib, operator: str | None) -> dict:
     ok, why = lib.store.verify()
     inbox = [{"id": it["id"], "chain": it["chain_i"], "seen": it["seen"],
               "text": render(it["data"]) if it["kind"] != "proposal" else it["data"]["text"],
-              "kind": it["kind"], "who": it["who"], "quarantine": it["data"].get("quarantine", [])}
+              "kind": it["kind"], "who": it["who"], "quarantine": it["data"].get("quarantine", []),
+              "reading_open": it["kind"] == "reading"
+              and lib.s["readings"].get(str(it["chain_i"]), {}).get("open", False)}
              for it in lib.store.inbox()][-50:]
     return {"installation": lib.installation, "operator": operator,
             "rank": lib.rank(operator) if operator in s["operators"] else None,
@@ -198,6 +200,8 @@ class _Handler(BaseHTTPRequestHandler):
                         out = {"done": True}
                     elif act == "held":
                         out = lib.held(str(body["q"]))
+                    elif act == "reading":
+                        out = {"done": lib.decide_reading(op, int(body["id"]), bool(body["verdict"]))}
                     elif act == "voice-on":
                         lib.set_setting(op, "voice_muted", False)
                         out = {"done": True}

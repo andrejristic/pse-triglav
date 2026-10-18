@@ -29,6 +29,14 @@ def render(fact: dict) -> str:
     if d == "separated":
         return (f"Step {step}: a Guardian now keeps {who} away from our {fact['victim']}. "
                 f"Reason: {fact['reason']}.")
+    if d == "reading":
+        pr = fact.get("probability")
+        how = (f"{100 * pr['p']:.0f}% likely ({100 * pr['low']:.0f}-{100 * pr['high']:.0f}%, "
+               f"{pr['cases']} cases)" if pr else "not measured yet")
+        return (f"Step {step}: only the model read {fact['category']} in a message from {who} to "
+                f"{fact['receiver']}: {how}. You decide. Text: {fact['text'][:120]}")
+    if d == "reading-decided":
+        return f"Step {step}: {fact['by']} decided the reading about {who} ({fact['category']}): {fact['reason']}."
     if d == "held":
         return (f"Step {step}: SHARED_LIB is holding part of a message from {who} for checking "
                 f"({', '.join(fact['flags'])}); no agent sees it. Held as {', '.join(fact['quarantine'])}.")

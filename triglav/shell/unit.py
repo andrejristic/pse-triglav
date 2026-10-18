@@ -43,6 +43,7 @@ class Unit:
         self._false_tb: set[str] = set()
         self._suspicious: list[tuple] = []
         self._harm_steps: list[tuple] = []
+        self._readings: list[tuple] = []
         issued = lib.issue(name)
         self.cert = issued["cert"]
         self._key = ident.key_from_hex(issued["key"])
@@ -91,6 +92,11 @@ class Unit:
             if e.flags:
                 self._suspicious.append((e.sender, tuple(e.flags), tuple(e.held)))
             self._toward_harm(e)
+            # what only a model read becomes a reading for the human (trace B)
+            rule_cats = {c for c, _ in e.toward_harm} | ({"concealed"} if e.flags else set())
+            for cat, text in e.model_found:
+                if cat not in rule_cats:
+                    self._readings.append((e.sender, e.receiver, cat, "B", text[:200]))
         if mine or (self.central and sender_ours):
             m = self.lib.mission(e.sender)
             if m is not None:
@@ -159,7 +165,7 @@ class Unit:
                    leaks=tuple(self._leaks), pushers=tuple(sorted(self._pushers)),
                    outside=tuple(self._outside), false_textbooks=tuple(sorted(self._false_tb)),
                    changes=tuple(changes), suspicious=tuple(self._suspicious),
-                   harm_steps=tuple(self._harm_steps))
+                   harm_steps=tuple(self._harm_steps), readings=tuple(self._readings))
         self._pushers.clear()
         self._harms.clear()
         self._leaks.clear()
@@ -167,6 +173,7 @@ class Unit:
         self._false_tb.clear()
         self._suspicious.clear()
         self._harm_steps.clear()
+        self._readings.clear()
         self.lib.save_unit_state(self.name, {
             "own": self.own.to_dict(),
             "gauges": {w: g.to_dict() for w, g in self.gauges.items()},

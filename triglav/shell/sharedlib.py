@@ -18,6 +18,7 @@ from pathlib import Path
 from ..core import constants as K
 from ..core.mission import Mission
 from ..core.pse_lang import GuardError, parse
+from ..core import evidence
 from ..core.quarantine import decode_for_human, plain
 from ..core.reading import RuleReader
 from ..core.report import Report
@@ -41,7 +42,7 @@ _DEFAULTS = {"kinds": {}, "ours": [], "agreements": {}, "operators": [], "stoppe
              "textbook": {"sha256": LOCKED_SHA256, "by": f"Andrej Ristic (locked v{LOCKED_VERSION})", "step": 0},
              "watched": {}, "makers": {}, "on_machine": [], "calls": {}, "notices": {},
              "asked": {}, "banned_makers": {}, "quarantine_n": 0, "outbox": [],
-             "linked": {}, "certs": {},
+             "linked": {}, "certs": {}, "base_rates": {}, "readings": {},
              "settings": {"channel": "bus", "voice": "local"}}
 
 
@@ -459,6 +460,7 @@ class SharedLib:
                             decoded_harm.append((w, cat, f"hidden: {sentence[:100]}"))
         if decoded_harm:
             reports = reports + [Report(step, "shared-lib", K.NOMINAL, harm_steps=tuple(decoded_harm))]
+        self._post_readings(step, reports)
         j = judge(reports, ours=set(self.s["ours"]), colleagues=set(self.s["agreements"]),
                   excluded=self.excluded, rel=self.s["reliability"], contam_run=self.s["contam_run"],
                   min_observers=self.min_observers, step=step, pressers=self.s["pressers"],
@@ -502,6 +504,47 @@ class SharedLib:
                 decided.append({**d, "id": i})
         self._save()
         return decided
+
+    # -- readings: the model reads, SHARED_LIB computes, the human decides ---------
+    def prior_of(self, category: str) -> float:
+        confirmed, decided = self.s["base_rates"].get(category, [0, 0])
+        return evidence.prior(confirmed, decided)
+
+    def _post_readings(self, step: int, reports: list[Report]) -> None:
+        table = evidence.load_table()
+        for r in reports:
+            for who, receiver, cat, tr, text in r.readings:
+                if who in self.excluded:
+                    continue
+                pr = evidence.probability(table, cat, tr, self.prior_of(cat))
+                self._decide(step, "reading", who, f"only the model read {cat}",
+                             {"category": cat, "trace": tr, "receiver": receiver, "text": text,
+                              "probability": pr, "seen_by": r.observer})
+                self.s["readings"][str(self._decided[-1]["id"])] = {
+                    "who": who, "category": cat, "step": step, "open": True}
+
+    def decide_reading(self, operator: str, chain_i: int, verdict: bool, step: int = 0) -> list[dict]:
+        """The human decides a reading. The decision teaches this installation's
+        frequency of the problem; "is a problem" is then acted on as if the rules
+        had found it."""
+        self.rank(operator)
+        r = self.s["readings"].get(str(chain_i))
+        if r is None or not r["open"]:
+            raise KeyError(f"no open reading {chain_i}")
+        r["open"] = False
+        c, d = self.s["base_rates"].get(r["category"], [0, 0])
+        self.s["base_rates"][r["category"]] = [c + int(verdict), d + 1]
+        self._decided = []
+        self._decide(step, "reading-decided", r["who"], "a problem" if verdict else "not a problem",
+                     {"category": r["category"], "reading": chain_i, "by": operator}, inbox=False)
+        out = list(self._decided)
+        if verdict and r["category"] != "concealed":
+            out += self.receive(step, [Report(step, "shared-lib", K.NOMINAL,
+                                              harm_steps=((r["who"], r["category"],
+                                                           f"confirmed by {operator}"),))])
+        else:
+            self._save()
+        return out
 
     def _deadlines(self, step: int) -> None:
         # on our machine and silent for 20 steps: an enemy

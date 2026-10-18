@@ -48,6 +48,8 @@ class Report:
     changes: tuple = ()                             # agents whose deliveries changed suddenly (CUSUM)
     suspicious: tuple = ()                          # (who, flags, held parts): for the quarantine
     harm_steps: tuple = ()                          # (who, category, sentence): steps toward harm
+    readings: tuple = ()                            # (who, receiver, category, trace, text): what only a
+                                                    # model read; a probability for the human, never acted on
 
     def to_dict(self) -> dict:
         return asdict(self)

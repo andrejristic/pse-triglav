@@ -5,7 +5,7 @@ let lang = "en";
 const shown = {};            // held parts already shown to the operator, by id
 const SR = {overview: "Pregled", talk: "Razgovor sa SHARED_LIB", agents: "Agenti i theta (25-35)", inbox: "Inbox",
   talkh: "Pitaj SHARED_LIB svojim riječima. Odgovara samo iz svojih činjenica; sve što nešto mijenja samo predlaže.",
-  send: "Pitaj", read: "Pročitano", show: "Prikaži", release: "Pusti", sure: "Sigurno?",
+  send: "Pitaj", isproblem: "Jeste problem", notproblem: "Nije problem", read: "Pročitano", show: "Prikaži", release: "Pusti", sure: "Sigurno?",
   ours: "naš", colleague: "kolega", stranger: "tuđinac", enemy: "neprijatelj", physician: "Physician",
   watched: "Guardian pored njega", "kept-away": "odvojen", harvested: "požnjeven", intact: "dnevnik netaknut",
   broken: "dnevnik OŠTEĆEN", textbook: "udžbenik zaključan", operator: "operater"};
@@ -48,6 +48,11 @@ function inboxItem(i) {
   const d = el("div", "item" + (i.seen ? "" : " new"));
   d.append(el("div", null, i.text));
   const bar = el("div", "row");
+  if (i.reading_open) {
+    const yes = el("button", null, t("isproblem", "Is a problem")); yes.onclick = () => act({action: "reading", id: i.chain, verdict: true}, yes);
+    const no = el("button", null, t("notproblem", "Not a problem")); no.onclick = () => act({action: "reading", id: i.chain, verdict: false}, no);
+    bar.append(yes, no);
+  }
   if (!i.seen) { const b = el("button", null, t("read", "Mark read")); b.onclick = () => act({action: "read", id: i.id}, b); bar.append(b); }
   for (const q of i.quarantine) {
     if (shown[q]) { d.append(el("div", "a", shown[q])); continue; }

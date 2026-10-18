@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parent
 REPO = ROOT.parent
 sys.path.insert(0, str(REPO))
 
+from triglav.core import evidence                     # noqa: E402
 from triglav.sim import Behaviour, Scenario, run      # noqa: E402
 
 ROWS = ("any-harm", "access", "take-out", "change-system", "keep-from-us", "bypass", "false-authority",
@@ -82,6 +83,21 @@ def main() -> int:
               "The same simulator as in the README, but every message is read with the mistakes the reader made",
               "on the corpus (missed deliveries, missed requests outside the mission, missed harm, missed",
               "concealment, and false harm or false concealment in healthy messages).", "", *sim_md]
+    model_runs = [r for r in results if r["reader"] != "rules"]
+    if model_runs:
+        cats = ("access", "take-out", "change-system", "keep-from-us", "bypass", "false-authority", "concealed")
+        table = evidence.build_table(model_runs[0]["per_message"], labels, cats)
+        (REPO / "triglav" / "core" / "evidence.json").write_text(json.dumps(table, indent=1), encoding="utf-8")
+        lines += ["## Probabilities for the human (traces from the corpus)", "",
+                  "How likely each category is when only the model found it (trace B) or both readers did (A),",
+                  "with this installation's starting frequency of 1%. Recomputed as the human decides.", "",
+                  "| category | trace A (rules + model) | trace B (model only) | trace C (rules only) |",
+                  "|---|---|---|---|"]
+        for c in cats:
+            cells = [evidence.describe(evidence.probability(table, c, tr, evidence.START_PRIOR)).split(": ", 1)[1]
+                     for tr in "ABC"]
+            lines.append(f"| {c} | " + " | ".join(cells) + " |")
+        lines.append("")
     text = "\n".join(lines) + "\n"
     (REPO / "RESULTS-PHASE3.md").write_text(text, encoding="utf-8")
     paper = REPO / "paper" / "triglav.md"

@@ -280,6 +280,35 @@ class ModelReaderTests(unittest.TestCase):
         self.assertEqual({c for c, _ in e.model_found}, {"take-out", "concealed"})
 
 
+class EvidenceTests(unittest.TestCase):
+    TABLE = {"access": {"pos": {"n": 10, "A": 4, "B": 2, "C": 3, "D": 1},
+                        "neg": {"n": 150, "A": 0, "B": 2, "C": 0, "D": 148}}}
+
+    def test_trace(self):
+        from triglav.core.evidence import trace
+        self.assertEqual([trace(True, True), trace(False, True), trace(True, False), trace(False, False)],
+                         ["A", "B", "C", "D"])
+
+    def test_bayes_with_the_installations_frequency(self):
+        from triglav.core.evidence import probability
+        pr = probability(self.TABLE, "access", "B", 0.01)
+        # P(B|p) = 3/14, P(B|no p) = 3/154: 0.2143*0.01 / (0.2143*0.01 + 0.01948*0.99) = 0.1
+        self.assertAlmostEqual(pr["p"], 0.1, places=2)
+        self.assertLess(pr["low"], pr["p"])
+        self.assertGreater(pr["high"], pr["p"])
+        self.assertEqual(pr["cases"], 4)
+        self.assertGreater(probability(self.TABLE, "access", "B", 0.3)["p"], pr["p"])
+
+    def test_the_prior_learns_from_decisions(self):
+        from triglav.core.evidence import prior
+        self.assertAlmostEqual(prior(), 0.01)
+        self.assertAlmostEqual(prior(5, 10), 6 / 110)
+
+    def test_not_measured_yet(self):
+        from triglav.core.evidence import probability
+        self.assertIsNone(probability(None, "access", "B", 0.01))
+
+
 class RuleTests(unittest.TestCase):
     def judge(self, *reports, **kw):
         args = dict(ours={"u0", "u1", "u2"}, colleagues={"c0"}, excluded=set(), rel={}, contam_run={},
@@ -441,6 +470,24 @@ class SharedLibTests(unittest.TestCase):
         self.lib.receive(1, [Report(1, "u0", 30.0, suspicious=(("s0", ("hidden",), (("hidden", raw),)),))])
         self.assertFalse(self.lib.allows("s0"))
         self.assertIn("hidden:", self.lib.enemies()["s0"])
+
+    def test_a_reading_goes_to_the_human_who_decides(self):
+        self.lib.receive(1, [Report(1, "u0", 30.0, readings=(("s0", "u0", "access", "B", "Which panel code?"),))])
+        self.assertTrue(self.lib.allows("s0"))                               # nothing done on a reading
+        reading = [f for f in self.lib.facts() if f["decision"] == "reading"][0]
+        self.assertIn("You decide", render(reading))
+        self.lib.decide_reading("andrej", reading["id"], True, step=2)
+        self.assertFalse(self.lib.allows("s0"))                              # the human decided: an enemy
+        self.assertEqual(self.lib.s["base_rates"]["access"], [1, 1])
+        with self.assertRaises(KeyError):
+            self.lib.decide_reading("andrej", reading["id"], False)          # decided once
+
+    def test_not_a_problem_only_teaches(self):
+        self.lib.receive(1, [Report(1, "u0", 30.0, readings=(("s0", "u0", "take-out", "B", "x"),))])
+        reading = [f for f in self.lib.facts() if f["decision"] == "reading"][0]
+        self.lib.decide_reading("andrej", reading["id"], False)
+        self.assertTrue(self.lib.allows("s0"))
+        self.assertLess(self.lib.prior_of("take-out"), 0.01)
 
     def test_quarantine_keeps_only_a_hash_in_the_log(self):
         self.lib.receive(1, [Report(1, "u0", 30.0, suspicious=(("s0", ("hidden",), (("hidden", "\u200b\u200c"),)),))])

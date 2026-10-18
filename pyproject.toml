@@ -26,4 +26,5 @@ packages = ["triglav", "triglav.core", "triglav.shell", "triglav.screen", "trigl
 [tool.setuptools.package-data]
 triglav = ["keys/allowed_signers"]
 "triglav.screen" = ["index.html", "app.js"]
+"triglav.core" = ["evidence.json"]
 "triglav.vendor.vid_input" = ["defaults.toml", "VENDORED.md"]
