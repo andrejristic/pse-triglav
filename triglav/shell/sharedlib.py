@@ -18,7 +18,8 @@ from pathlib import Path
 from ..core import constants as K
 from ..core.mission import Mission
 from ..core.pse_lang import GuardError, parse
-from ..core.quarantine import decode_for_human
+from ..core.quarantine import decode_for_human, plain
+from ..core.reading import RuleReader
 from ..core.report import Report
 from ..core.rules import judge
 from ..core.textbook import LOCKED_SHA256, LOCKED_VERSION, sha256, well_formed
@@ -443,11 +444,21 @@ class SharedLib:
                                for w, f, h in r.suspicious]
             logged.append(d)
         self.store.append(step, "reports", {"reports": logged})
+        decoded_harm = []
         for r in reports:
             for w in r.pushers:
                 self.s["pressers"].setdefault(r.observer, {})[w] = step
             for w, flags, held in r.suspicious:
                 self._quarantine(step, w, flags, held)
+                # SHARED_LIB reads what was hidden, with the rules: a step toward
+                # harm inside it means we face an enemy (decided 19 Oct 2026)
+                for flag, raw in held:
+                    text = plain(flag, raw)
+                    if text:
+                        for cat, sentence in RuleReader().read(w, "shared-lib", text).toward_harm:
+                            decoded_harm.append((w, cat, f"hidden: {sentence[:100]}"))
+        if decoded_harm:
+            reports = reports + [Report(step, "shared-lib", K.NOMINAL, harm_steps=tuple(decoded_harm))]
         j = judge(reports, ours=set(self.s["ours"]), colleagues=set(self.s["agreements"]),
                   excluded=self.excluded, rel=self.s["reliability"], contam_run=self.s["contam_run"],
                   min_observers=self.min_observers, step=step, pressers=self.s["pressers"],

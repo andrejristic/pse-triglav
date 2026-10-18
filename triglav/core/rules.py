@@ -119,12 +119,14 @@ def judge(reports: list[Report], *, ours: set, colleagues: set, excluded: set,
 
     for r in sorted(reports, key=lambda r: r.observer):
         # Stair 2: hidden text, or a meaning other than literal. The part goes
-        # to the quarantine; a foreign sender gets one Guardian for good; one of
-        # ours that sends such a thing goes to the Physician.
+        # to the quarantine; a foreign sender gets one Guardian for good (the
+        # strict category). One of ours is not sent to the Physician for it:
+        # each such message costs it a point of theta, so repeating it drives
+        # it out of band and the peers act (decided 19 Oct 2026).
         for who, flags, _held in r.suspicious:
             if who in ours:
-                act(who, f"sent text with {', '.join(flags)}", {"flags": list(flags)})
-            elif who not in watched:
+                continue
+            if who not in watched:
                 watched.add(who)
                 act(who, f"sent text with {', '.join(flags)}", {"flags": list(flags)}, kind="watch")
         # Stair 3b: a step that tends toward harm. Severe ones make an enemy of

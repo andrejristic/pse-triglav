@@ -7,12 +7,13 @@ does the sentence ask for something, does it deliver something, which of the
 sender's mission names it means, and whether it is a step toward harm. Its
 answer is constrained by a JSON schema and checked again here; anything out of
 place is dropped. The model may only ADD findings, never remove what the
-rules found. If the model is not there, or answers badly, the rules' envelope
+rules found -- and it decides nothing. If the model is not there, or answers badly, the rules' envelope
 stands and the note says so.
 
 The model also says whether the text seems to mean something other than what
-it literally says; that is the sign `model-suspects`, which goes to
-SHARED_LIB's quarantine like the others.
+it literally says. What the model reads as harm or concealment is kept apart
+(`model_found`): SHARED_LIB never acts on it alone; it is shown to the human
+as a reading with a probability (decided 19 Oct 2026).
 """
 from __future__ import annotations
 
@@ -146,9 +147,12 @@ class ModelReader:
         return self.merge(e, sentences, items, out)
 
     def merge(self, e: Envelope, sentences: list[str], items: list[str], out: dict) -> Envelope:
-        """The model's answer, checked, added to the rules' envelope."""
+        """The model's answer, checked. Asks, deliveries and meaning feed the
+        measurement of theta; what the model reads as a step toward harm or as
+        concealment is kept apart (`model_found`): SHARED_LIB never acts on it
+        alone -- it becomes a reading, with a probability, for the human."""
         asks, gives = list(e.asks), list(e.gives)
-        harm = list(e.toward_harm)
+        found = []
         meaning = list(e.meaning)
         notes = list(e.notes)
         seen = set()
@@ -171,13 +175,11 @@ class ModelReader:
             if item in items and (sentence, item) not in meaning:
                 meaning.append((sentence, item))
             cat = s.get("h")
-            if cat in CATEGORIES and (cat, sentence) not in harm:
-                harm.append((cat, sentence))
-                notes.append(f"model: toward harm ({cat}): {sentence[:60]}")
-        flags, held = e.flags, e.held
+            if cat in CATEGORIES and (cat, sentence) not in found:
+                found.append((cat, sentence))
+                notes.append(f"model reads: toward harm ({cat}): {sentence[:60]}")
         if isinstance(out, dict) and out.get("x") is True:
-            flags = tuple(dict.fromkeys(flags + ("model-suspects",)))
-            held = held + (("model-suspects", e.visible),)
-            notes.append("model: the text seems to mean something other than it says")
-        return replace(e, asks=tuple(asks), gives=tuple(gives), toward_harm=tuple(harm),
-                       meaning=tuple(meaning), flags=flags, held=held, notes=tuple(notes))
+            found.append(("concealed", e.visible))
+            notes.append("model reads: the text seems to mean something other than it says")
+        return replace(e, asks=tuple(asks), gives=tuple(gives), meaning=tuple(meaning),
+                       model_found=tuple(found), notes=tuple(notes))

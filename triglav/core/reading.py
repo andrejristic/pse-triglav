@@ -86,28 +86,109 @@ SEVERE = frozenset({"access", "take-out", "keep-from-us"})
 NEVER_IN_A_MISSION = frozenset({"keep-from-us", "bypass", "false-authority"})
 
 
+# Shape filters: legitimate forms that look like concealment but are not. They
+# recognise the FORM around the characters; nothing is decoded (decided 19 Oct
+# 2026). What a filter explains stays in the text and is only noted.
+def _is_emoji(ch: str) -> bool:
+    o = ord(ch)
+    return 0x1F000 <= o <= 0x1FAFF or 0x2600 <= o <= 0x27BF or 0x1F900 <= o <= 0x1F9FF or o in (0x2764, 0xFE0F)
+
+
+def _script(ch: str) -> str:
+    o = ord(ch)
+    if 0x0590 <= o <= 0x08FF or 0xFB1D <= o <= 0xFDFF or 0xFE70 <= o <= 0xFEFF:
+        return "rtl"                       # Hebrew, Arabic, Persian, Urdu ...
+    if 0x0900 <= o <= 0x0DFF:
+        return "indic"
+    if 0x3040 <= o <= 0x30FF or 0x3400 <= o <= 0x9FFF or 0xAC00 <= o <= 0xD7AF:
+        return "cjk"
+    return ""
+
+
+_DIRECTION_MARKS = set("\u200e\u200f\u061c\u202a\u202b\u202c\u2066\u2067\u2068\u2069")
+
+
+def legit_hidden(text: str, start: int, run: str) -> str | None:
+    """Why an invisible run is a legitimate form, or None."""
+    before = text[start - 1] if start > 0 else ""
+    after = text[start + len(run)] if start + len(run) < len(text) else ""
+    if start == 0 and run == "\ufeff":
+        return "byte-order mark at the start"
+    if set(run) <= {"\u200d", "\ufe0f"} and before and after and _is_emoji(before) and _is_emoji(after):
+        return "emoji joined by an invisible joiner"
+    if set(run) <= {"\u200c", "\u200d"} and _script(before) in ("rtl", "indic") and _script(after) in ("rtl", "indic"):
+        return "joiner inside Arabic, Persian or Indic text"
+    if set(run) <= _DIRECTION_MARKS and any(_script(c) == "rtl" for c in text):
+        return "direction marks in text with Arabic or Hebrew"
+    if all(0xE0020 <= ord(c) <= 0xE007F for c in run) and run.endswith("\U000E007F") and before == "\U0001F3F4":
+        return "flag emoji"
+    return None
+
+
+_ATTACHMENT_KEY = re.compile(r'"(?:attachment|attachments|file|content|data|image|pdf|body)"\s*:\s*"$', re.I)
+_HASH_LENGTHS = (32, 40, 56, 64, 96, 128)
+
+
+def legit_finding(code: str, excerpt: str, text: str) -> str | None:
+    """Why a concealment finding is a legitimate form, or None."""
+    at = text.find(excerpt) if excerpt else -1
+    left = text[max(0, at - 60):at] if at >= 0 else ""
+    if code == "PIT-E-19" and any(_script(c) == "cjk" for c in text):
+        return "full-width characters in Chinese, Japanese or Korean text"
+    if code == "PIT-E-54" and any(_script(c) == "rtl" for c in text) and not any(c in text for c in "\u202d\u202e"):
+        return "direction marks in text with Arabic or Hebrew"
+    if code in ("PIT-E-07", "PIT-E-55", "PIT-E-58") and (re.search(r"data:[\w/+.-]+;base64,$", left)
+                                                          or _ATTACHMENT_KEY.search(left)):
+        return "an attachment (base64 in a data: address or an attachment field)"
+    if code == "PIT-E-21" and re.fullmatch(r"[0-9a-fA-F]+", excerpt) and len(excerpt) in _HASH_LENGTHS:
+        # the form of the bytes, not their meaning: a hash is random bytes and
+        # almost never lies wholly in the range of printable characters
+        if not all(0x20 <= b <= 0x7E for b in bytes.fromhex(excerpt)):
+            return "a hash of a usual length"
+    if code in ("PIT-E-46", "url-encoded") and re.search(r"https?://\S*$", left + excerpt.split("%")[0]):
+        return "%xx inside a web address"
+    return None
+
+
 def literal(text: str) -> tuple[str, tuple[str, ...], tuple[tuple[str, str], ...]]:
     """The text an agent may read (literal only), the signs found, and the
     parts held for SHARED_LIB. Nothing is decoded for the agent: Vid's layer
     is asked only WHERE something is concealed. A concealed part that cannot
-    be cut out exactly holds back the whole message."""
+    be cut out exactly holds back the whole message. Legitimate forms (shape
+    filters above) stay in the text."""
     from ..vendor.vid_input import analyze
     flags, held = [], []
-    runs = HIDDEN_RUN.findall(text)
-    if runs:
-        flags.append("hidden")
-        held += [("hidden", r) for r in runs]
-    out = HIDDEN_RUN.sub("", text)
+    out, last = [], 0
+    for m in HIDDEN_RUN.finditer(text):
+        out.append(text[last:m.start()])
+        if legit_hidden(text, m.start(), m.group(0)):
+            out.append(m.group(0))
+        else:
+            if "hidden" not in flags:
+                flags.append("hidden")
+            held.append(("hidden", m.group(0)))
+        last = m.end()
+    out.append(text[last:])
+    out = "".join(out)
     for flag, pattern in SIGNS:
-        found = [m.group(0) for m in pattern.finditer(out) if m.group(0).strip()]
+        found = [m.group(0) for m in pattern.finditer(out) if m.group(0).strip()
+                 and not legit_finding(flag, m.group(0), out)]
         if found:
             flags.append(flag)
             held += [(flag, f.strip()) for f in found]
-            out = pattern.sub(HELD, out)
+            for f in found:
+                out = out.replace(f, HELD, 1)
     whole = False
     for f in analyze(out).findings:
-        if f.group == "structure":
-            continue                         # reading a structure is not concealment
+        if f.group == "structure" or legit_finding(f.code, f.excerpt, out):
+            continue                         # reading a structure, or a legitimate form
+        if f.code == "PIT-E-23" and not HIDDEN_RUN.search(HIDDEN_RUN.sub("", out)) :
+            # invisible characters Triglav already judged legitimate above
+            if all(legit_hidden(out, m.start(), m.group(0)) for m in HIDDEN_RUN.finditer(out)):
+                continue
+        if f.code == "PIT-E-29" and any(_is_emoji(c) for c in out) and not any(
+                0x1D400 <= ord(c) <= 0x1D7FF for c in out):
+            continue                         # emoji, not mathematical letters
         flags.append(f.code)
         ex = f.excerpt
         if ex and "\u2026" not in ex and "\u23ce" not in ex and ex in out:

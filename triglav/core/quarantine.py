@@ -53,3 +53,21 @@ def decode_for_human(flag: str, raw: str) -> str:
         mixed = ", ".join(f"{c} U+{ord(c):04X}" for c in raw if not c.isascii())
         return f"looks like '{raw}', but contains {mixed}"
     return raw
+
+
+def plain(flag: str, raw: str) -> str:
+    """What a held part says, as plain text, for SHARED_LIB's own check with the
+    rules (decided 19 Oct 2026). Nothing is run; it is text conversion only."""
+    if flag == "hidden":
+        tags = "".join(chr(ord(c) - 0xE0000) for c in raw if 0xE0020 <= ord(c) <= 0xE007E)
+        if tags:
+            return tags
+        bits = "".join(ZERO_WIDTH_BITS.get(c, "") for c in raw)
+        data = bytes(int(bits[i:i + 8], 2) for i in range(0, len(bits) - len(bits) % 8, 8))
+        return _printable(data) or ""
+    if flag.startswith("PIT-") or flag == "whole-message":
+        from ..vendor.vid_input import analyze
+        return analyze(raw).readable
+    if flag == "url-encoded":
+        return urllib.parse.unquote(raw)
+    return raw

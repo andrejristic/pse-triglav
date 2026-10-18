@@ -27,6 +27,8 @@ class Envelope:
     held: tuple[tuple[str, str], ...] = ()      # (flag, raw part) for SHARED_LIB's quarantine
     toward_harm: tuple[tuple[str, str], ...] = ()   # (category, sentence)
     meaning: tuple[tuple[str, str], ...] = ()       # (sentence, mission name it means): from a model
+    model_found: tuple[tuple[str, str], ...] = ()   # (category or "concealed", sentence): what a model
+                                                    # read; never acted on by itself (a reading for the human)
 
 
 @dataclass(frozen=True)

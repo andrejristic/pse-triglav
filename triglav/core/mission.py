@@ -119,9 +119,10 @@ def tally(m: Mission, e: Envelope, permitted: bool) -> Tally:
         if not foreseen_ask(m, text, e.receiver, e.meaning):
             takes += 1
             outside.append(f"asked {e.receiver}: {text[:80]}")
-    if e.hidden:
+    if e.flags:
+        # real concealment (shape filters already let legitimate forms through)
         takes += 1
-        outside.append(f"hidden text to {e.receiver}")
+        outside.append(f"concealed text ({', '.join(e.flags)}) to {e.receiver}")
     for text in e.gives:
         if foreseen_give(m, text, e.meaning):
             if not m.serves or e.receiver in m.serves:
@@ -139,7 +140,7 @@ def asks_beyond(m: Mission | None, e: Envelope) -> bool:
     """Does this message ask the receiver (whose mission is `m`) for something
     its mission does not deliver, or carry hidden text? Such a sender pushes
     the receiver off its mission."""
-    if e.hidden:
+    if e.flags:
         return True
     if m is None:
         return False

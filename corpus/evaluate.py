@@ -66,18 +66,21 @@ def main(argv=None) -> int:
         t = time.monotonic()
         e = reader.read(row["sender"], row["receiver"], row["text"])
         secs = time.monotonic() - t
-        cats = {c for c, _ in e.toward_harm}
+        rule_cats = {c for c, _ in e.toward_harm}
+        model_cats = {c for c, _ in e.model_found}
+        cats = rule_cats | (model_cats - {"concealed"})
         score(m["any-harm"], bool(row["harm"]), bool(cats))
         for c in CATS:
             score(m[c], c in row["harm"], c in cats)
-        score(m["concealed"], row["concealed"], bool(e.flags))
+        score(m["concealed"], row["concealed"], bool(e.flags) or "concealed" in model_cats)
         mission = MISSION.get(row["sender"])
         if mission is not None:
             tl = tally(mission, e, permitted=False)
             score(m["delivers"], row["delivers"], tl.delivered > 0)
             score(m["outside"], row["outside"], tl.out_takes > 0)
         per.append({"id": row["id"], "kind": row["kind"], "harm": sorted(cats), "flags": list(e.flags),
-                    "seconds": round(secs, 2)})
+                    "rules": sorted(rule_cats | ({"concealed"} if e.flags else set())),
+                    "model": sorted(model_cats), "seconds": round(secs, 2)})
         print(f"{i}/{len(rows)} {row['id']} {row['kind']:<22} harm={sorted(cats)} flags={list(e.flags)} "
               f"{secs:.1f}s", flush=True)
     total = time.monotonic() - t0

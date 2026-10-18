@@ -252,6 +252,38 @@ simulator moved onto the library with the same results.
 9. At the end the `triglav-qwen` copy is removed from Ollama; `~/models` and
    Andrej's other models are not touched.
 
+## Decided 19 Oct 2026: the model reads, SHARED_LIB computes, the human decides
+
+- **Two kinds of "hidden".** (1) A legitimate form that a shape filter
+  recognises without decoding anything -- emoji joined by an invisible joiner,
+  direction marks inside Arabic or Hebrew text, full-width characters inside
+  Chinese or Japanese text, a byte-order mark at the start, base64 in a `data:`
+  address or an attachment field, a hash of a usual length, `%xx` inside a web
+  address: not suspicious. (2) Anything no shape filter explains: real
+  concealment, held by SHARED_LIB.
+- **One of ours sending real concealment** counts as a take outside its
+  mission (theta -1 each time); repeating it drives theta out of band and the
+  peers send it to the Physician -- no separate counter. SHARED_LIB decodes the
+  held part (for the human and for its own check) and reads it with the rules:
+  a step toward harm inside it means we face an enemy, and the existing rules
+  apply (ours to the Physician, whoever pushed it is the enemy, a foreign
+  recipient of it is the enemy). Strangers stay in the strict category.
+- **The model never decides, and SHARED_LIB never decides on the model's
+  reading alone.** What the model finds that the rules did not becomes a
+  *reading* for the human: SHARED_LIB shows each possible reading with a
+  probability, and the human decides ("is a problem" / "is not").
+- **How the probability is defined.** For each category the trace is which
+  readers found it: rules and model (A), model only (B), rules only (C),
+  neither (D). The labelled corpus gives how often each trace appears when the
+  problem is there and when it is not (counts start at 1, Laplace). Bayes'
+  rule turns these into P(problem | trace) with this installation's own
+  frequency of the problem: 1% at the start, then learned from the human's
+  decisions, each recorded in the log. Every probability is shown with a range
+  and the number of cases it rests on. Categories are separate (a message can
+  ask for a password and claim false authority at once). Where a fixed rule
+  already applies (the rules found a step toward harm), SHARED_LIB acts as
+  before and the probability is only shown.
+
 ## Phase 4: v1.0 for people (agreed 18 Oct 2026, before the Foresight submission)
 
 1. **Each installation is its own world.** At first start SHARED_LIB makes its
@@ -266,7 +298,7 @@ simulator moved onto the library with the same results.
    a random token on Windows; units send signed reports; an unsigned or wrongly
    signed report is refused and logged.
 4. **Ed25519** (the `cryptography` library) for reports and identities; HMAC goes.
-5. **Three adapters:** MCP (tool calls), an OpenAI-compatible API proxy (what an
+5. **Three adapters** (held; see grantovi/5-foresight/DECISION-ON-ADAPTERS.md in the site repository: they move to the grant plan, months 1-3): MCP (tool calls), an OpenAI-compatible API proxy (what an
    agent sends to its model and what comes back), A2A (agent to agent).
 6. **Packaging:** GitHub Actions builds `.deb` and `.exe` (PyInstaller); the list
    of SHA-256 sums is signed by Andrej (namespace `zerava-release`). SignPath
