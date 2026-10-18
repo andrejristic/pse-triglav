@@ -99,6 +99,15 @@ theta  = 100 * other, never above 35
   what its peers see. Each unit reports on the few agents it works with, so
   reports grow linearly with the number of agents.
 
+## Reading real text (phase 3)
+
+On a labelled corpus of 160 messages the rules alone make no false enemy and
+find 73% of the steps toward harm and 90% of the concealment; a small local
+model raises concealment to 98% but adds false readings, which -- because the
+model only reads and the human decides -- become readings with a probability,
+never actions. Full tables, the simulator with the measured reading errors,
+and what it means: [RESULTS-PHASE3.md](RESULTS-PHASE3.md).
+
 ## The voice (SHARED_LIB and the human)
 
 1. Facts and their text are **deterministic**; a model may only retell them.

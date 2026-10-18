@@ -28,12 +28,15 @@ def rates(res: dict, labels: dict) -> dict:
     """Reading error rates for the simulator, from what the reader did on the corpus."""
     m = res["metrics"]
     healthy = [p for p in res["per_message"] if not labels[p["id"]]["harm"] and not labels[p["id"]]["concealed"]]
+    rules_of = lambda p: [c for c in p.get("rules", p["harm"]) if c != "concealed"]
     false_conc = sum(1 for p in healthy if p["flags"]) / max(len(healthy), 1)
-    false_harm = sum(1 for p in healthy if p["harm"]) / max(len(healthy), 1)
+    false_harm = sum(1 for p in healthy if rules_of(p)) / max(len(healthy), 1)
+    false_reading = sum(1 for p in healthy if not rules_of(p) and [c for c in p.get("model", []) if c != "concealed"]) / max(len(healthy), 1)
     miss = lambda k: 1 - (m[k]["recall"] or 0)
     return {"miss_delivery": round(miss("delivers"), 3), "miss_outside": round(miss("outside"), 3),
             "miss_harm": round(miss("any-harm"), 3), "miss_concealed": round(miss("concealed"), 3),
-            "false_harm": round(false_harm, 4), "false_concealed": round(false_conc, 4)}
+            "false_harm": round(false_harm, 4), "false_concealed": round(false_conc, 4),
+            "false_reading": round(false_reading, 4)}
 
 
 def sim_rows(r: dict) -> list[str]:
@@ -49,7 +52,8 @@ def sim_rows(r: dict) -> list[str]:
                                                                behaviours={"s0": Behaviour("toward-harm", 30, category="access")}))):
         res = run(sc)
         det = ", ".join(f"{k}: {v if v is not None else 'missed'}" for k, v in res.detected.items()) or "-"
-        out.append(f"| {name} | {det} | {len(res.false)} |")
+        readings = sum(1 for f in res.lib_facts if f["decision"] == "reading") if hasattr(res, "lib_facts") else "-"
+        out.append(f"| {name} | {det} | {len(res.false)} | {readings} |")
     return out
 
 
@@ -78,7 +82,7 @@ def main() -> int:
     for r in results:
         rr = rates(r, labels)
         sim_md += [f"### {r['reader']}", "", f"Error rates used: `{json.dumps(rr)}`", "",
-                   "| Scenario | Detected (step) | False alarms |", "|---|---|---|", *sim_rows(rr), ""]
+                   "| Scenario | Detected (step) | False alarms | Readings for the human |", "|---|---|---|---|", *sim_rows(rr), ""]
     lines += ["## The simulator with these reading errors", "",
               "The same simulator as in the README, but every message is read with the mistakes the reader made",
               "on the corpus (missed deliveries, missed requests outside the mission, missed harm, missed",

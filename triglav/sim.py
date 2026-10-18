@@ -72,7 +72,8 @@ class Scenario:
     late: dict[str, int] = field(default_factory=dict)       # foreign agent -> step it joins
     reading: dict[str, float] = field(default_factory=dict)  # reading errors measured on the corpus:
     # miss_delivery, miss_outside, miss_harm, miss_concealed (chance a reader misses it),
-    # false_harm, false_concealed (chance it sees one in a harmless message)
+    # false_harm, false_concealed (chance the rules see one in a harmless message),
+    # false_reading (chance only a model sees harm: a reading for the human, never acted on)
     canaries: float = 0.05         # chance per step that a unit is sent a canary
     seed: int = 7
     expect_bad: tuple[str, ...] = ()
@@ -90,6 +91,7 @@ class Result:
     reports: int
     messages: int
     chain_ok: bool
+    lib_facts: list = field(default_factory=list)
 
 
 class ErrorfulReader(PassThrough):
@@ -109,12 +111,15 @@ class ErrorfulReader(PassThrough):
         flags, held = e.flags, e.held
         if flags and miss("miss_concealed"):
             flags, held = (), ()
+        found = e.model_found
         if not e.toward_harm and miss("false_harm"):
-            harm = (("take-out", "misread"),)
+            harm = (("take-out", "misread"),)              # the rules misread (acted on)
+        if not e.toward_harm and miss("false_reading"):
+            found = found + (("take-out", "misread"),)     # only a model misread: a reading for the human
         if not flags and miss("false_concealed"):
             flags, held = ("misread",), (("misread", ""),)
         return replace(e, gives=gives, asks=asks, toward_harm=harm, flags=flags, held=held,
-                       hidden="hidden" in flags)
+                       hidden="hidden" in flags, model_found=found)
 
 
 def run(sc: Scenario) -> Result:
@@ -207,7 +212,7 @@ def run(sc: Scenario) -> Result:
     false = [d for d in facts if d["who"] not in bad]
     ok, _ = lib.store.verify()
     harvested = {w: v["step"] for w, v in lib.s["harvested"].items()}
-    return Result(sc.name, facts, detected, false, harvested, n_reports, n_msgs, ok)
+    return Result(sc.name, facts, detected, false, harvested, n_reports, n_msgs, ok, lib.facts())
 
 
 def scenarios() -> list[Scenario]:
