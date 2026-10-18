@@ -497,7 +497,7 @@ class SignatureTests(unittest.TestCase):
 
     def test_the_real_key_is_carried(self):
         line = (Path(__file__).resolve().parent.parent / "triglav" / "keys" / "allowed_signers").read_text()
-        self.assertIn('andrej-ristic namespaces="pse-textbook" ssh-ed25519 ', line)
+        self.assertIn('andrej-ristic namespaces="pse-textbook,zerava-release" ssh-ed25519 ', line)
 
 
 class UnitTests(unittest.TestCase):

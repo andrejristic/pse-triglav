@@ -1,0 +1,63 @@
+# Builds the .deb and the .exe and the list of their SHA-256 sums.
+# Runs only by hand (Actions -> build -> Run workflow) or on a pushed tag v*.
+# It never publishes anything by itself: a release is made by a human, after
+# Andrej Ristic signs SHA256SUMS (see docs/RELEASE.md).
+name: build
+on:
+  workflow_dispatch:
+  push:
+    tags: ["v*"]
+permissions:
+  contents: read
+jobs:
+  test:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install "cryptography>=41"
+      - run: python -m unittest discover -s tests
+  deb:
+    needs: test
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - run: sh packaging/build_deb.sh
+      - uses: actions/upload-artifact@v4
+        with: {name: deb, path: dist/*.deb, retention-days: 7}
+  exe:
+    needs: test
+    runs-on: windows-latest
+    env:
+      SIGNPATH_ON: ${{ secrets.SIGNPATH_API_TOKEN != '' }}
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with: {python-version: "3.12"}
+      - run: pip install "cryptography>=41" pyinstaller
+      - run: >
+          pyinstaller --onefile --name triglav --console
+          --add-data "triglav/keys/allowed_signers;triglav/keys"
+          --add-data "triglav/screen/index.html;triglav/screen"
+          --add-data "triglav/screen/app.js;triglav/screen"
+          --add-data "triglav/vendor/vid_input/defaults.toml;triglav/vendor/vid_input"
+          --collect-submodules triglav
+          packaging/triglav_entry.py
+      - run: dist\triglav.exe textbook status
+      # Code signing with SignPath Foundation (free for open source): switched
+      # on when SignPath approves the project and the secret exists. See
+      # docs/CODE-SIGNING.md.
+      - if: env.SIGNPATH_ON == 'true'
+        run: echo "SignPath signing step goes here once the project is approved (docs/CODE-SIGNING.md)"
+      - uses: actions/upload-artifact@v4
+        with: {name: exe, path: dist/triglav.exe, retention-days: 7}
+  sums:
+    needs: [deb, exe]
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/download-artifact@v4
+        with: {path: out, merge-multiple: true}
+      - run: cd out && sha256sum * > SHA256SUMS && cat SHA256SUMS
+      - uses: actions/upload-artifact@v4
+        with: {name: release-files, path: out/*, retention-days: 7}

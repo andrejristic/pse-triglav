@@ -152,3 +152,19 @@ triglav demo                       # a team of three, an invoice with hidden tex
 triglav simulate                   # every scenario, as a table
 python3 -m unittest discover -s tests
 ```
+
+## 10. This computer, other computers, the screen (v1.0)
+
+```sh
+triglav serve                      # SHARED_LIB as its own process (Unix socket, or 127.0.0.1 + token on Windows)
+triglav link show                  # this installation's ID and public key
+triglav link add <their-key> --name "Dhiraj's laptop"   # a human, on BOTH computers
+triglav link remove <their-ID>
+triglav screen                     # the screen in your browser: agents, inbox, and a tab to talk to SHARED_LIB
+```
+
+Every installation makes its own key at first start; its units carry
+certificates signed by it and sign their reports. Units of another
+installation are foreign until a human links the two on both ends. On Linux
+`packaging/triglav.service` runs `triglav serve` as a user service. Releases:
+`docs/RELEASE.md`; free code signing for the `.exe`: `docs/CODE-SIGNING.md`.

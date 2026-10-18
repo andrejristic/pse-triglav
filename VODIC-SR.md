@@ -149,3 +149,19 @@ triglav demo                       # tim od tri agenta, faktura sa skrivenim tek
 triglav simulate                   # svi scenariji, kao tabela
 python3 -m unittest discover -s tests
 ```
+
+## 10. Ovaj računar, drugi računari, ekran (v1.0)
+
+```sh
+triglav serve                      # SHARED_LIB kao poseban proces (Unix socket, ili 127.0.0.1 + token na Windowsu)
+triglav link show                  # ID i javni ključ ove instalacije
+triglav link add <njihov-ključ> --name "Dhirajev laptop"   # čovjek, na OBA računara
+triglav link remove <njihov-ID>
+triglav screen                     # ekran u pregledniku: agenti, inbox i tab za razgovor sa SHARED_LIB
+```
+
+Svaka instalacija pri prvom pokretanju napravi svoj ključ; njene jedinice nose
+potvrde koje ona potpisuje i potpisuju svoje izvještaje. Jedinice druge
+instalacije su tuđe dok ih čovjek ne spoji na oba kraja. Na Linuxu
+`packaging/triglav.service` pokreće `triglav serve` kao korisnički servis.
+Izdanja: `docs/RELEASE.md`; besplatan potpis za `.exe`: `docs/CODE-SIGNING.md`.
