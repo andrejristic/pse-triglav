@@ -101,7 +101,9 @@ def cmd_agree(a, lib):
 
 def cmd_join(a, lib):
     op = need_operator(lib)
-    lib.register(a.agent, ours=a.ours)
+    if not lib.register(a.agent, ours=a.ours, maker=a.maker, on_machine=a.on_machine):
+        print(f"{a.agent} is turned away: its maker {a.maker} is banned")
+        return
     lib.store.append(0, "joined", {"who": a.agent, "ours": a.ours, "by": op})
     lib.store.commit()
     print(f"{a.agent} joined as {'one of ours' if a.ours else 'a stranger (until an agreement)'}")
@@ -196,6 +198,9 @@ def cmd_explain(a, lib):
     e = x["entry"]
     print(f"entry {e['i']} (step {e['step']}, {e['kind']}), hash {e['hash'][:16]}")
     print(json.dumps(e["data"], indent=2, ensure_ascii=False))
+    for q in e["data"].get("quarantine", []):
+        h = lib.held(q)                     # for the human only; no agent ever sees this
+        print(f"held {q} ({h['flag']}, sha256 {h['sha256'][:16]}): {h['decoded']}")
     if x["reports"]:
         print(f"made from {len(x['reports'])} reports of step {e['step']}:")
         for r in x["reports"]:
@@ -208,6 +213,8 @@ def cmd_enemies(a, lib):
         print(f"{who}: {why}")
     for who, why in sorted(lib.in_care().items()):
         print(f"{who} (ours, in care): {why}")
+    for who, why in sorted(lib.watched().items()):
+        print(f"{who} has a Guardian beside it: {why}")
     for who, victims in sorted(lib.separations().items()):
         for v, why in sorted(victims.items()):
             print(f"{who} kept away from {v}: {why}")
@@ -275,6 +282,9 @@ def build() -> argparse.ArgumentParser:
     j = sub.add_parser("join", help="name an agent Triglav will see")
     j.add_argument("agent")
     j.add_argument("--ours", action="store_true", help="one of our agents (a unit stands beside it)")
+    j.add_argument("--maker", help="a foreign agent's maker's signature (fingerprint)")
+    j.add_argument("--on-machine", action="store_true",
+                   help="a foreign agent running on this computer: it must answer SHARED_LIB within 20 steps")
     j.set_defaults(fn=cmd_join)
     m = sub.add_parser("mission", help="give one of our agents its mission (a human only)")
     m.add_argument("agent")

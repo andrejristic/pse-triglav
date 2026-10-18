@@ -16,7 +16,8 @@ from __future__ import annotations
 from dataclasses import replace
 
 from ..core import constants as K
-from ..core.mission import Mission, asks_beyond, hypothesis, tally, words
+from ..core.mission import Mission, asks_beyond, foreseen_ask, foreseen_give, hypothesis, tally, words
+from ..core.reading import NEVER_IN_A_MISSION
 from ..core.report import Envelope, Report
 from ..core.theta import Gauge, add, close, estimate, in_band
 
@@ -39,6 +40,8 @@ class Unit:
         self._leaks: list[tuple] = []
         self._outside: list[tuple] = []
         self._false_tb: set[str] = set()
+        self._suspicious: list[tuple] = []
+        self._harm_steps: list[tuple] = []
 
     # -- whose mission ----------------------------------------------------------
     def _mission(self, who: str) -> Mission | None:
@@ -57,10 +60,28 @@ class Unit:
             return e.gift is not None and e.gift == self.lib.textbook_hash()
         return e.mandate or (e.gift is not None and e.gift == self.lib.textbook_hash())
 
+    def _toward_harm(self, e: Envelope) -> None:
+        """Steps toward harm, read against the sender's mission: what its mission
+        foresees is its work; keeping something from us, bypassing a protection
+        and false authority are never in a mission."""
+        m = self.lib.mission(e.sender)
+        for cat, sentence in e.toward_harm:
+            if m is not None and cat not in NEVER_IN_A_MISSION and (
+                    foreseen_ask(m, sentence, e.receiver) or foreseen_give(m, sentence)):
+                continue
+            self._harm_steps.append((e.sender, cat, sentence[:120]))
+
     # -- one message ------------------------------------------------------------------
     def receive(self, e: Envelope) -> None:
         mine = e.sender == self.name
         sender_ours = self.lib.kind(e.sender) == "ours"
+        seen_here = mine or self.central or e.receiver == self.name
+        if seen_here and not (not mine and sender_ours and not self.central):
+            # each message is judged once: by its sender's unit if the sender is
+            # ours, else by the receiver's unit (or the central watcher)
+            if e.flags:
+                self._suspicious.append((e.sender, tuple(e.flags), tuple(e.held)))
+            self._toward_harm(e)
         if mine or (self.central and sender_ours):
             m = self.lib.mission(e.sender)
             if m is not None:
@@ -128,12 +149,15 @@ class Unit:
                    pushed_by=dict(self.run_by), out_run=self.out_run, harms=tuple(self._harms),
                    leaks=tuple(self._leaks), pushers=tuple(sorted(self._pushers)),
                    outside=tuple(self._outside), false_textbooks=tuple(sorted(self._false_tb)),
-                   changes=tuple(changes))
+                   changes=tuple(changes), suspicious=tuple(self._suspicious),
+                   harm_steps=tuple(self._harm_steps))
         self._pushers.clear()
         self._harms.clear()
         self._leaks.clear()
         self._outside.clear()
         self._false_tb.clear()
+        self._suspicious.clear()
+        self._harm_steps.clear()
         self.lib.save_unit_state(self.name, {
             "own": self.own.to_dict(),
             "gauges": {w: g.to_dict() for w, g in self.gauges.items()},

@@ -40,6 +40,12 @@ LOOKBACK = 10
 # no new move outside its mission; this long after the last push.
 VICTIM_GRACE = 15
 
+# Answers to SHARED_LIB (decided 18 Oct 2026): a foreign agent on our machine
+# answers the call, and an enemy its notice, within ANSWER_STEPS; a colleague
+# that is asked answers within COLLEAGUE_ANSWER_STEPS or is kept away until it does.
+ANSWER_STEPS = 20
+COLLEAGUE_ANSWER_STEPS = 3
+
 # SHARED_LIB's aggregation of peer measurements.
 MIN_OBSERVERS = 2          # fewer independent observers -> no conclusion
 CONTAMINATION_RUN = 2      # consecutive steps the peers agree a unit is out of band

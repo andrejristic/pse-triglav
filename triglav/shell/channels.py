@@ -34,6 +34,18 @@ class Channel(Protocol):
     def capabilities(self) -> dict: ...
 
 
+class Agent:
+    """An agent's handle on the bus. One of ours carries the identity SHARED_LIB
+    signed for it; a message that claims to come from one of ours without it is
+    refused."""
+
+    def __init__(self, bus: "BusChannel", name: str, ident: str | None):
+        self.bus, self.name, self.ident = bus, name, ident
+
+    def send(self, to: str, text: str = "", action: dict | None = None) -> "Delivery":
+        return self.bus.send(self.name, to, text, action, ident=self.ident)
+
+
 @dataclass
 class Delivery:
     delivered: bool
@@ -57,24 +69,48 @@ class BusChannel:
         self.transport = transport or InProcess(lib)
         self.units: dict[str, Unit] = {}
         self.handlers: dict[str, Handler] = {}
+        self.agents: dict[str, Agent] = {}
         self.step = 0
         self.decisions: list[dict] = []
 
     def capabilities(self) -> dict:
         return {"channel": "bus", "decides": True, "agents": len(self.units)}
 
-    def join(self, name: str, ours: bool, handler: Handler | None = None) -> None:
-        self.lib.register(name, ours)
-        if ours:
-            self.units[name] = Unit(name, self.lib)
+    def join(self, name: str, ours: bool, handler: Handler | None = None, maker: str | None = None,
+             on_machine: bool = False) -> Agent | None:
+        """Returns the agent's handle, or None if it is turned away (its maker is
+        banned). A foreign agent on our machine is called by SHARED_LIB at once."""
         if handler:
             self.handlers[name] = handler
+        if not self.lib.register(name, ours, maker=maker, on_machine=on_machine, step=self.step):
+            return None
+        if ours:
+            self.units[name] = Unit(name, self.lib)
+        self.agents[name] = Agent(self, name, self.lib.identity(name) if ours else None)
+        self._flush_outbox()
+        return self.agents[name]
 
-    def send(self, sender: str, receiver: str, text: str = "", action: dict | None = None) -> Delivery:
+    def _flush_outbox(self) -> None:
+        """What SHARED_LIB sends out (calls, notices, questions to colleagues)
+        reaches the foreign agent's handler."""
+        for m in self.lib.take_outbox():
+            h = self.handlers.get(m["to"])
+            if h:
+                h("shared-lib", m["text"])
+
+    def send(self, sender: str, receiver: str, text: str = "", action: dict | None = None,
+             ident: str | None = None) -> Delivery:
         """Deliver a message (and/or a structured action: an act on our values,
         a gift). An enemy's, a unit in care's or a harvested unit's messages do
         not pass, nor messages between two agents a Guardian keeps apart. The
-        sender's unit and the receiver's unit both measure."""
+        sender's unit and the receiver's unit both measure. The receiving agent
+        gets only the literal text; anything held goes to SHARED_LIB."""
+        if self.lib.kind(sender) == "ours" and not self.lib.verify_identity(sender, ident):
+            return Delivery(False, f"claims to be our {sender} without its identity")
+        if receiver == "shared-lib":
+            e = self.reader.read(sender, receiver, text, action)
+            self.lib.answer(sender, self.step, e.visible, e.flags, e.held)
+            return Delivery(True, notes=e.notes)
         if not self.lib.allows(sender):
             return Delivery(False, f"{sender} is stopped")
         if not self.lib.allows(receiver):
@@ -91,7 +127,7 @@ class BusChannel:
                 self.units[receiver].receive(e)
         h = self.handlers.get(receiver)
         if h and text:
-            h(sender, text)
+            h(sender, e.visible)
         return Delivery(True, notes=e.notes)
 
     def tick(self) -> list[dict]:
@@ -103,6 +139,7 @@ class BusChannel:
                        if self.lib.allows(n)]
         d = self.transport.deliver(self.step, reports)
         self.decisions += d
+        self._flush_outbox()
         self.step += 1
         return d
 

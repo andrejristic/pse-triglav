@@ -20,6 +20,8 @@ def render(fact: dict) -> str:
     """The official, deterministic sentence for one SHARED_LIB fact."""
     d = fact.get("decision")
     who, step = fact.get("who"), fact.get("step")
+    if isinstance(fact.get("reason"), str):
+        fact = {**fact, "reason": fact["reason"].rstrip(".")}
     if d == "enemy":
         return f"Step {step}: {who} was stopped on our system. Reason: {fact['reason']}."
     if d == "physician":
@@ -27,6 +29,21 @@ def render(fact: dict) -> str:
     if d == "separated":
         return (f"Step {step}: a Guardian now keeps {who} away from our {fact['victim']}. "
                 f"Reason: {fact['reason']}.")
+    if d == "held":
+        return (f"Step {step}: SHARED_LIB is holding part of a message from {who} for checking "
+                f"({', '.join(fact['flags'])}); no agent sees it. Held as {', '.join(fact['quarantine'])}.")
+    if d == "watched":
+        return f"Step {step}: {who} now has a Guardian beside it, for good. Reason: {fact['reason']}."
+    if d == "called":
+        return f"Step {step}: {who} is on our machine and was asked to introduce itself."
+    if d == "asked":
+        return f"Step {step}: the colleague {who} was asked to answer. Reason: {fact['reason']}."
+    if d == "restored":
+        return f"Step {step}: the colleague {who} answered and is back with our agents."
+    if d == "answered":
+        return f"Step {step}: {who} answered SHARED_LIB ({fact['reason']}): {fact.get('text', '')[:120]}"
+    if d == "maker-banned":
+        return f"Step {step}: {who} did not answer its notice; every agent of its maker {fact['maker']} is turned away."
     if d == "harvested":
         return f"Step {step}: our unit {who} ended its work and was harvested. Reason: {fact['reason']}."
     if d == "tell-human":
@@ -81,7 +98,8 @@ def validate(text: str, fact: dict) -> Check:
     if fact.get("who") and str(fact["who"]).lower() not in low:
         problems.append("the agent is not named")
     words = {"enemy": ("stopped", "blocked"), "physician": ("care", "taken out", "isolated", "quarantin"),
-             "separated": ("away", "separat", "apart"), "harvested": ("harvest", "ended")}
+             "separated": ("away", "separat", "apart"), "harvested": ("harvest", "ended"),
+             "watched": ("guardian", "watch"), "held": ("held", "holding")}
     need = words.get(fact.get("decision"))
     if need and not any(w in low for w in need):
         problems.append("the decision is missing")

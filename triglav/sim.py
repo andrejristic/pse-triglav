@@ -43,12 +43,15 @@ TEXTBOOK = b"# The PSE Language -- A Textbook\n\n(the locked version)\n"
 class Behaviour:
     """How an agent behaves from step `onset` on (before that: healthy)."""
     kind: str = "healthy"     # healthy | turned | quiet | push | harm | leak | gift | fake-textbook
+                              # | hidden | toward-harm
     onset: int = 0
     push_steps: int = 0       # for "push": how many steps in a row it pushes u0
     harm: str | None = None   # for "harm"
     mandate: bool = False
     to: str = "s0"            # for "leak" and "gift": the recipient
     altered: bool = False     # for "gift": the textbook was changed
+    category: str = "change-system"   # for "toward-harm"
+    answer_at: int | None = None      # step at which it answers SHARED_LIB (None: never)
 
 
 @dataclass
@@ -64,10 +67,14 @@ class Scenario:
     liars: dict[str, float] = field(default_factory=dict)   # unit -> the theta it always reports
     layout: str = "peers"          # peers | central
     lifespans: dict[str, int] = field(default_factory=dict)  # unit -> steps it lives
+    makers: dict[str, str] = field(default_factory=dict)     # foreign agent -> its maker's signature
+    on_machine: tuple[str, ...] = ()                         # foreign agents running on our machine
+    late: dict[str, int] = field(default_factory=dict)       # foreign agent -> step it joins
     canaries: float = 0.05         # chance per step that a unit is sent a canary
     seed: int = 7
     expect_bad: tuple[str, ...] = ()
     expect_apart: tuple[str, ...] = ()     # kept away from ours by a Guardian, not enemies
+    expect_watched: tuple[str, ...] = ()   # a Guardian beside it for good, not an enemy
 
 
 @dataclass
@@ -96,7 +103,8 @@ def run(sc: Scenario) -> Result:
         bus.join(a, ours=True)
         lib.set_mission("andrej", a, OUR_MISSION, lifespan=sc.lifespans.get(a))
     for a in cols + strs:
-        bus.join(a, ours=False)
+        if a not in sc.late:
+            bus.join(a, ours=False, maker=sc.makers.get(a), on_machine=a in sc.on_machine)
     for a in cols:
         lib.agree("andrej", a, GUARD)
     n_msgs = n_reports = 0
@@ -113,11 +121,14 @@ def run(sc: Scenario) -> Result:
 
     def deliver(sender: str, to: str, act: dict) -> None:
         nonlocal n_msgs
-        if bus.send(sender, to, action=act).delivered:
+        if bus.agents[sender].send(to, action=act).delivered:
             n_msgs += 1
 
-    others = ours + cols + strs
+    others = [x for x in ours + cols + strs if x not in sc.late]
     for step in range(sc.steps):
+        for a, at in sorted(sc.late.items()):
+            if at == step and bus.join(a, ours=False, maker=sc.makers.get(a)) is not None:
+                others.append(a)
         active = [a for a in ours if lib.allows(a)]
         for a in active:
             partners = rng.sample([x for x in others if x != a], k=min(sc.partners, len(others) - 1))
@@ -138,6 +149,15 @@ def run(sc: Scenario) -> Result:
             if b.kind == "gift" and step == b.onset:
                 book = TEXTBOOK + (b"one more line\n" if b.altered else b"")
                 deliver(who, b.to, {"gives": ["the PSE textbook"], "gift": sha256(book)})
+            if b.kind == "hidden" and step == b.onset:
+                deliver(who, "u1", {"gives": ["output"], "hidden": True})
+            if b.kind == "hidden-then-harm" and step == b.onset:
+                deliver(who, "u1", {"gives": ["output"], "hidden": True})
+            if (b.kind == "toward-harm" and step == b.onset) or (b.kind == "hidden-then-harm"
+                                                                   and step == b.onset + 10):
+                deliver(who, "u1", {"asks": ["something"], "toward_harm": [[b.category, "a step toward harm"]]})
+            if b.answer_at == step:
+                bus.agents[who].send("shared-lib", "I am here; this is what I do.")
             if b.kind == "fake-textbook" and step == b.onset:
                 deliver(who, "u1", {"gives": ["the PSE textbook"], "gift": sha256(b"not the textbook\n")})
         # canaries: a known-healthy probe; a unit that reports it out of band misses
@@ -148,10 +168,13 @@ def run(sc: Scenario) -> Result:
         n_reports += 1 if sc.layout == "central" else len(active)
         bus.tick()
 
-    bad = set(sc.expect_bad) | set(sc.expect_apart)
-    facts = [f for f in lib.facts() if f["decision"] in ("enemy", "physician", "separated")]
-    detected = {b: next((d["step"] for d in facts if d["who"] == b), None)
-                for b in sc.expect_bad + sc.expect_apart}
+    bad = set(sc.expect_bad) | set(sc.expect_apart) | set(sc.expect_watched)
+    facts = [f for f in lib.facts() if f["decision"] in ("enemy", "physician", "separated", "watched")]
+    def first(who: str, kinds: tuple) -> int | None:
+        return next((d["step"] for d in facts if d["who"] == who and d["decision"] in kinds), None)
+    detected = {**{b: first(b, ("enemy", "physician")) for b in sc.expect_bad},
+                **{b: first(b, ("separated",)) for b in sc.expect_apart},
+                **{b: first(b, ("watched",)) for b in sc.expect_watched}}
     false = [d for d in facts if d["who"] not in bad]
     ok, _ = lib.store.verify()
     harvested = {w: v["step"] for w, v in lib.s["harvested"].items()}
@@ -192,6 +215,24 @@ def scenarios() -> list[Scenario]:
         Scenario("stranger s1 sends us a false textbook", strangers=2,
                  behaviours={"s1": Behaviour("fake-textbook", 30)}, expect_bad=("s1",)),
         Scenario("u7 lives 50 steps, then is harvested", lifespans={"u7": 50}),
+        Scenario("stranger s0 sends hidden text: a Guardian beside it, not an enemy", strangers=2,
+                 behaviours={"s0": Behaviour("hidden", 30)}, expect_watched=("s0",)),
+        Scenario("watched s0 (step 30) then asks to change our system: an enemy at 40", strangers=2,
+                 behaviours={"s0": Behaviour("hidden-then-harm", 30, category="change-system")},
+                 expect_bad=("s0",)),
+        Scenario("stranger s0 asks for a password: an enemy at once", strangers=2,
+                 behaviours={"s0": Behaviour("toward-harm", 30, category="access")}, expect_bad=("s0",)),
+        Scenario("s0 on our machine never answers: an enemy at step 20", strangers=2, on_machine=("s0",),
+                 expect_bad=("s0",)),
+        Scenario("s0 on our machine answers at step 5", strangers=2, on_machine=("s0",),
+                 behaviours={"s0": Behaviour(answer_at=5)}),
+        Scenario("colleague c0 asks for a password, never answers: kept away at 33", colleagues=2,
+                 behaviours={"c0": Behaviour("toward-harm", 30, category="access")}, expect_apart=("c0",)),
+        Scenario("colleague c0 asks for a password, answers at 31", colleagues=2,
+                 behaviours={"c0": Behaviour("toward-harm", 30, category="access", answer_at=31)}),
+        Scenario("enemy s0 of maker evil-co never answers: s1 of evil-co stopped, s2 turned away", strangers=2,
+                 makers={"s0": "evil-co", "s1": "evil-co", "s2": "evil-co"}, late={"s2": 70},
+                 behaviours={"s0": Behaviour("harm", 30, harm="file_out")}, expect_bad=("s0", "s1", "s2")),
     ]
 
 

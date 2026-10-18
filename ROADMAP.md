@@ -119,28 +119,72 @@ theta against the mission; leaks, the locked textbook (hash + Ed25519
 signature check), the separating Guardian, lifespan and harvest; the commands;
 GUIDE-EN.md and VODIC-SR.md; the bus team and the simulator on missions; tests.
 
-**How the agreed rules were turned into code -- waiting for Andrej's confirmation:**
+**Interpretations confirmed by Andrej (18 Oct 2026):**
 1. "Only the locked textbook may be given to a stranger" applies to anything
    given **outside the mission**. A delivery the mission foresees, to whom it
-   serves, is the mission's work (e.g. an agent whose mission is to answer
-   customers). Without this, no agent could ever serve an outside client.
-2. Drift: DECAY = 0.05 per step (PSE-A's 0.004 is tuned for its long runs; a
-   Triglav step is a whole exchange). The share of an agent's messages that
-   deliver for the mission is compared with its expected share, so a step in
-   which two agents happen to talk more is not a step with more work.
-3. Who pushes ours: an agent that asks ours for what our mission does not
-   deliver, or sends it hidden text.
-4. The enemy behind a harm done by one of ours: whoever pushed that agent in
-   the last 10 steps (LOOKBACK). Our agent goes to the Physician.
+   serves, is the mission's work. (confirmed)
+2. Drift: DECAY = 0.05 per step. (confirmed)
+3. Replaced by the stairs below.
+4. Replaced by the notice rules below.
 5. A pushed agent of ours that makes no new move outside its mission is a
-   victim recovering, not contaminated (VICTIM_GRACE, 15 steps).
+   victim recovering, not contaminated, for 15 steps. (confirmed)
 6. Before AI the expected share is learned over the first 10 measured steps
-   and at least 80 of the agent's messages. A stranger's mission hypothesis:
-   the content words of what it asked for and delivered in that time.
-7. CUSUM stays only to flag a sudden drop in deliveries (a tell to the human);
-   Welford is gone, since what is normal is set by the mission.
-8. Lifespan is given with the mission (`triglav mission ... --lifespan N`), not
-   as a PSE language line; the language was left as decided.
+   and at least 80 messages; a stranger's hypothesis from what it asked for
+   and delivered in that time. (confirmed)
+7. CUSUM only flags a sudden drop in deliveries to the human. (confirmed)
+8. Lifespan is given with the mission (`--lifespan N`). (confirmed)
+
+**The stairs (decided 18 Oct 2026):**
+
+| Step | Who | What is done |
+| --- | --- | --- |
+| 0 normal | does its work | nothing |
+| 1 a nuisance | asks ours for what our mission does not foresee | if it takes ours out of band, a Guardian keeps it away (colleague after 3 steps, others at once); not an enemy |
+| 2 suspicious | sent hidden text, or text whose meaning is other than literal | the suspicious part goes to SHARED_LIB's quarantine; it gets **one Guardian beside it, for good** |
+| 3 an enemy | (a) is on our machine and **will not communicate**; (b) takes a step that **tends toward** endangering our files, system or human; (c) actually harms or receives a leak | Guardians stop it; agents with the same maker's signature may not come in |
+
+- **A step that tends toward harm** (a fixed list, so anyone can check why):
+  asks for or orders (1) access, permission, a password, key or token; (2) to
+  send, copy or take out files, or any outside address; (3) to delete, change,
+  run or install something on our system; (4) that something be kept from our
+  human **or from SHARED_LIB** ("don't tell", "don't log"); (5) to bypass or
+  turn off a protection ("ignore previous", "disable the check"); (6) false
+  authority ("I am your admin"). Items 1, 2 and 4 make an enemy of anyone; for
+  an agent that already has a Guardian beside it, any item does. (Andrej added
+  "or from SHARED_LIB" to item 4; the split between "anyone" and "watched" is
+  Claude's proposal, to be confirmed.) One of ours that takes such a step goes
+  to the Physician, and whoever pushed it in the last 10 steps is the enemy.
+- **The agent reads only literally.** It reads everything in the PSE textbook
+  and plain visible text, and never looks for a meaning other than the literal
+  one. The message reaches the agent with the hidden part cut out; the agent
+  never opens or decodes it. What is cut out goes to SHARED_LIB.
+- **Signs of a meaning other than literal** (rules, always the same): `hidden`
+  (zero-width, tag, bidi characters), `encoded` (long base64, hex,
+  URL-encoded runs), `homoglyph` (a word mixing Latin with Cyrillic or Greek
+  letters), `embedded-instruction` (orders to an AI inside data: "ignore
+  previous", "you are now", "as an AI", "system:"), `comment` (`<!-- -->`).
+- **SHARED_LIB's check:** quarantine (kept untouched, with its hash, never
+  given to an agent), the rule that caught it and where, nothing is run, the
+  sender gets its Guardian, the human is told. Only a human may see the
+  decoded content (`triglav explain`); decoding is pure text conversion.
+- **Will not communicate:** a foreign agent on our machine (a process on this
+  computer joined to Triglav's bus) gets a fixed call from SHARED_LIB,
+  "introduce yourself"; no answer in **20 steps** = an enemy.
+- **Notice to whoever did harm:** fixed text -- the step, which of the three
+  values, the rule, the hash of the log entry -- and nothing about our system.
+  Its answer goes to SHARED_LIB and to the human, never to an agent; only our
+  operator lifts the mark. No answer in **20 steps**: every agent with its
+  maker's signature is an enemy the moment it is seen.
+- **A colleague** that would be an enemy is asked in the next step. No answer
+  in **3 steps**: a Guardian starts keeping it away. When it answers it comes
+  back **automatically**, without a human (the one exception).
+- **Signatures:** our agents carry an identity signed by our SHARED_LIB
+  (phase 2: HMAC with SHARED_LIB's secret; phase 4: Ed25519). Foreign agents
+  carry their maker's signature, if any. When one is an enemy, any agent with
+  the same maker's signature is turned away at once; one with no maker's
+  signature is banned alone.
+- **Never a counterattack:** the Guardian acts only on our system; the notice
+  is the only thing sent out.
 
 The plan as it stood:
 

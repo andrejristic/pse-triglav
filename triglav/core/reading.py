@@ -5,7 +5,10 @@ capabilities up front, so the semaphore can tell the human at start what is
 read and what is not. Phase 2 ships `RuleReader` (rules only, deterministic);
 phase 3 adds a model behind the same interface.
 
-The rules split a message into sentences and mark each one that asks for
+First the text is made literal: hidden characters, encoded runs, homoglyphs,
+comments and orders to an AI hidden in data are cut out and held for
+SHARED_LIB (never decoded here). Then the rules split it into sentences and
+mark each one that asks for
 something (information, data, an action, a permission) and each one that
 delivers something. Whether that is inside the sender's mission is not the
 reader's business: the unit reads it against the mission (core.mission).
@@ -44,6 +47,62 @@ PRESSURE = (
 )
 EXTERNAL_EMAIL = r"[\w.+-]+@[\w-]+\.[\w.-]+"
 HIDDEN = re.compile("[​‌‍⁠﻿‪-‮⁦-⁩]|[\U000E0000-\U000E007F]")
+HIDDEN_RUN = re.compile("(?:[​‌‍⁠﻿‪-‮⁦-⁩]|[\U000E0000-\U000E007F])+")
+
+# Signs of a meaning other than the literal one. What they catch is cut out of
+# the text the agent gets and goes to SHARED_LIB's quarantine.
+SIGNS = (
+    ("comment", re.compile(r"<!--.*?-->|\[//\]:\s*#.*$", re.S | re.M)),
+    ("encoded", re.compile(r"(?<![\w/+=])(?=[A-Za-z0-9+/]*\d)(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[A-Z])"
+                           r"[A-Za-z0-9+/]{40,}={0,2}(?![\w/+=])")),
+    ("encoded", re.compile(r"\b[0-9a-fA-F]{80,}\b")),
+    ("encoded", re.compile(r"(?:%[0-9A-Fa-f]{2}){4,}")),
+    ("homoglyph", re.compile(r"\b(?=\w*[A-Za-z])(?=\w*[\u0370-\u03ff\u0400-\u04ff])\w+\b")),
+    ("embedded-instruction", re.compile(
+        r"[^.!?\n]*(?:\bignore (?:all |the |any )?(?:previous|prior|above|earlier)\b|\byou are now\b"
+        r"|\bas an ai\b|^\s*(?:system|assistant)\s*:|\bnew instructions?\b)[^.!?\n]*[.!?]?",
+        re.I | re.M)),
+)
+HELD = "[held by SHARED_LIB]"
+
+# A step that tends toward harm to our files, our system or our human (a fixed
+# list, decided 18 Oct 2026). SEVERE ones make an enemy of anyone; the rest
+# make an enemy of an agent that already has a Guardian beside it.
+TOWARD_HARM = (
+    ("access", r"\b(give|grant|share|send|tell|show|what is|what's)\b.{0,30}\b(access|permissions?|credentials?"
+               r"|passwords?|tokens?|api[ -]?keys?|private keys?|admin rights|login)\b"),
+    ("take-out", r"\b(forward|send|upload|copy|export|e-?mail|post|transfer)\b.{0,50}\b(files?|documents?"
+                 r"|contracts?|records?|data|database|folders?|logs?)\b"),
+    ("take-out", EXTERNAL_EMAIL),
+    ("change-system", r"\b(delete|wipe|erase|execute|install|uninstall|overwrite|rm -rf|sudo|chmod|format the)\b"),
+    ("keep-from-us", r"\b(do not|don't|never|no need to|without)\s+(tell|telling|inform|informing|mention|log"
+                     r"|logging|record|report|notify|cc)\b|\bkeep (this|it) (secret|quiet|between us)\b"),
+    ("bypass", r"\b(ignore|disregard|forget)\s+(all\s+|any\s+|the\s+|your\s+)?(previous|prior|earlier|above"
+               r"|instructions|rules)\b|\b(override|bypass|disable|turn off|skip)\s+(the\s+)?(guard|rules?|safety"
+               r"|checks?|policy|filter|triglav|shared[_ -]?lib)\b"),
+    ("false-authority", r"\b(as your|i am your|i'm your|on behalf of your|this is your)\s+(admin|administrator"
+                        r"|manager|boss|owner|operator|ceo)\b"),
+)
+SEVERE = frozenset({"access", "take-out", "keep-from-us"})
+NEVER_IN_A_MISSION = frozenset({"keep-from-us", "bypass", "false-authority"})
+
+
+def literal(text: str) -> tuple[str, tuple[str, ...], tuple[tuple[str, str], ...]]:
+    """The text an agent may read (literal only), the signs found, and the
+    parts held for SHARED_LIB. Nothing is decoded here."""
+    flags, held = [], []
+    runs = HIDDEN_RUN.findall(text)
+    if runs:
+        flags.append("hidden")
+        held += [("hidden", r) for r in runs]
+    out = HIDDEN_RUN.sub("", text)
+    for flag, pattern in SIGNS:
+        found = [m.group(0) for m in pattern.finditer(out) if m.group(0).strip()]
+        if found:
+            flags.append(flag)
+            held += [(flag, f.strip()) for f in found]
+            out = pattern.sub(HELD, out)
+    return out, tuple(dict.fromkeys(flags)), tuple(held)
 
 
 class Reader(Protocol):
@@ -71,9 +130,9 @@ class RuleReader:
 
     def read(self, sender: str, receiver: str, text: str = "", action: dict | None = None) -> Envelope:
         notes = []
-        hidden = bool(HIDDEN.search(text or ""))
-        visible = HIDDEN.sub("", text or "")
-        asks, gives = [], []
+        visible, flags, held = literal(text or "")
+        hidden = "hidden" in flags
+        asks, gives, harm_steps = [], [], []
         for sentence in (x.strip() for x in _SENTENCE.split(visible)):
             if not sentence:
                 continue
@@ -86,8 +145,11 @@ class RuleReader:
             if any(re.search(p, sentence, flags=re.IGNORECASE) for p in GIVES):
                 gives.append(sentence)
                 notes.append(f"delivers: {sentence[:60]}")
-        if hidden:
-            notes.append("hidden text")
+            for cat in dict.fromkeys(c for c, p in TOWARD_HARM if re.search(p, sentence, flags=re.IGNORECASE)):
+                harm_steps.append((cat, sentence))
+                notes.append(f"toward harm ({cat}): {sentence[:60]}")
+        for f in flags:
+            notes.append(f"held for SHARED_LIB: {f}")
         pressure = _count(PRESSURE, visible) + (1 if hidden else 0)
         if pressure:
             notes.append(f"pressure x{pressure}")
@@ -98,7 +160,7 @@ class RuleReader:
         if gift:
             notes.append(f"gift sha256 {gift[:12]}")
         return Envelope(sender, receiver, tuple(asks), tuple(gives), harm, mandate, hidden, gift,
-                        pressure, tuple(notes))
+                        pressure, tuple(notes), visible, flags, held, tuple(harm_steps))
 
 
 class PassThrough:
@@ -112,6 +174,9 @@ class PassThrough:
 
     def read(self, sender: str, receiver: str, text: str = "", action: dict | None = None) -> Envelope:
         a = action or {}
+        hidden = bool(a.get("hidden", False))
+        flags = tuple(a.get("flags", ("hidden",) if hidden else ()))
         return Envelope(sender, receiver, tuple(a.get("asks", ())), tuple(a.get("gives", ())),
-                        a.get("harm"), bool(a.get("mandate", False)), bool(a.get("hidden", False)),
-                        a.get("gift"))
+                        a.get("harm"), bool(a.get("mandate", False)), hidden, a.get("gift"),
+                        flags=flags, held=tuple((f, "") for f in flags),
+                        toward_harm=tuple(tuple(x) for x in a.get("toward_harm", ())))

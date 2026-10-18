@@ -46,6 +46,27 @@ By [Andrej Ristić](https://www.linkedin.com/in/andrej-ristic-17a40628/),
 - **Out of band without harm:** a Guardian keeps the pusher away from that
   agent of ours -- a colleague after 3 consecutive steps, anyone else at the
   first.
+- **The stairs.** A nuisance (asks ours for what its mission does not foresee)
+  is only kept away. A sender of hidden text, or of text whose meaning is
+  other than literal, gets **one Guardian beside it for good**, and the
+  suspicious part goes to SHARED_LIB's quarantine. An **enemy** is one that is
+  on our machine and will not communicate, or that takes a step **toward**
+  harming our files, system or human (a fixed list: access and passwords,
+  taking files out or an outside address, keeping something from our human or
+  from SHARED_LIB are enough for anyone; for a watched agent any step on the
+  list is).
+- **Agents read only literally.** The receiving agent gets the visible text;
+  hidden characters, encoded runs, homoglyphs, comments and orders to an AI
+  hidden in data are cut out and held by SHARED_LIB, never decoded by an
+  agent. Only a human may see them decoded (`triglav explain`).
+- **Answers.** A foreign agent on our machine is called and must answer in 20
+  steps. An enemy gets a fixed notice (the step, the rule, the log hash,
+  nothing about our system); no answer in 20 steps and every agent with its
+  maker's signature is turned away. A colleague is asked first: no answer in 3
+  steps and it is kept away until it answers.
+- **Signatures.** Our agents carry an identity signed by our SHARED_LIB (phase
+  2: HMAC; phase 4: Ed25519); a message claiming to be one of ours without it
+  is refused.
 - **Units measure; SHARED_LIB alone concludes.** Every conclusion is in a
   hash-chained, append-only log and is a pure function of the reports, so
   anyone holding the reports can recompute it.
@@ -114,14 +135,24 @@ theta is measured against the agents' missions.
 | our u2 gives s0 an ALTERED textbook | s0: 30, u2: 30 | 0 | — | 1151 | 20757 | ok |
 | stranger s1 sends us a false textbook | s1: 30 | 0 | — | 1280 | 25929 | ok |
 | u7 lives 50 steps, then is harvested | — | 0 | u7@49 | 1170 | 25552 | ok |
+| stranger s0 sends hidden text: a Guardian beside it, not an enemy | s0: 30 | 0 | — | 1280 | 27265 | ok |
+| watched s0 (step 30) then asks to change our system: an enemy at 40 | s0: 40 | 0 | — | 1280 | 25982 | ok |
+| stranger s0 asks for a password: an enemy at once | s0: 30 | 0 | — | 1280 | 25877 | ok |
+| s0 on our machine never answers: an enemy at step 20 | s0: 20 | 0 | — | 1280 | 25772 | ok |
+| s0 on our machine answers at step 5 | — | 0 | — | 1280 | 27264 | ok |
+| colleague c0 asks for a password, never answers: kept away at 33 | c0: 33 | 0 | — | 1280 | 25897 | ok |
+| colleague c0 asks for a password, answers at 31 | — | 0 | — | 1280 | 27265 | ok |
+| enemy s0 of maker evil-co never answers: s1 of evil-co stopped, s2 turned away | s0: 30, s1: 50, s2: 70 | 0 | — | 1280 | 24748 | ok |
 
 What it shows: a turned agent of ours is caught one or two steps after it
 starts asking outside its mission, also when 2 or 3 of the 8 units lie to
 cover it. A single central watcher is as fast, but if it is fooled nothing is
 caught. A colleague may push for 3 steps; at the 4th, and a stranger at the
 first, a Guardian keeps it away from our agent. Leaks and false textbooks are
-stopped the step they happen. The same holds on seeds 1-5: no false alarm in
-any scenario, and nothing missed except where the single central watcher lies.
+stopped the step they happen. Hidden text earns a Guardian, not an enemy mark;
+a step toward harm, silence on our machine, or an unanswered notice does. The
+same holds on seeds 1-5: no false alarm in any scenario, and nothing missed
+except where the single central watcher lies.
 
 ## Run
 
@@ -146,7 +177,8 @@ separation doctrine).
 | `triglav/core/mission.py` | missions, and one message read against the sender's mission |
 | `triglav/core/theta.py` | theta against the mission: one gauge per agent measured |
 | `triglav/core/rules.py` | SHARED_LIB's judgement, a pure function |
-| `triglav/core/reading.py` | a message into what it asks for and delivers (rules) |
+| `triglav/core/reading.py` | literal text, signs of other meanings, asks, deliveries, steps toward harm |
+| `triglav/core/quarantine.py` | what a human may see of a held part (decoding is text conversion only) |
 | `triglav/core/pse_lang.py` | enough of the PSE language: guards and mission lines |
 | `triglav/core/textbook.py` | the locked textbook: hash and fixed form |
 | `triglav/core/voicetext.py` | the official sentences and the voice's validator |

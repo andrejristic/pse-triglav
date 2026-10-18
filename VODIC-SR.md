@@ -28,6 +28,7 @@ triglav operators                  # svi, po rangu
 ```sh
 triglav join triage --ours         # naš agent: pored njega stoji jedinica
 triglav join vendor-bot            # agent kojeg vidimo, a ne vodimo: tuđinac
+triglav join spooler --on-machine --maker 3f9a...   # radi na ovom računaru: mora odgovoriti za 20 koraka
 triglav mission triage triage.pse --lifespan 500
 triglav done triage                # misija je završena: jedinica se žanje
 ```
@@ -70,8 +71,22 @@ triglav revoke partner
 
 ## 5. Šta SHARED_LIB odlučuje
 
+Agenti čitaju samo bukvalno: skriveni znakovi, kodirani nizovi, homoglifi,
+komentari i naredbe AI-ju sakrivene u podacima izrezuju se prije nego što
+agent vidi poruku i čuva ih SHARED_LIB. Korak **ka** zlu je onaj koji traži
+ili nalaže: pristup ili lozinku; iznošenje fajlova ili vanjsku adresu;
+mijenjanje, brisanje, pokretanje ili instaliranje; da se nešto sakrije od
+našeg čovjeka ili od SHARED_LIB-a; zaobilaženje zaštite; lažni autoritet.
+
 | Šta se desilo | Odluka |
 | --- | --- |
+| tražio od našeg agenta ono što njegova misija ne nalaže | smetnja: odvaja se samo ako izbaci našeg iz opsega |
+| poslao skriveni tekst ili tekst sa značenjem drugačijim od bukvalnog | **jedan Guardian pored njega, zauvijek**; dio se zadržava |
+| korak ka zlu: pristup, iznošenje, sakrivanje od nas | **neprijatelj**, za svakoga |
+| bilo koji korak ka zlu agenta koji već ima Guardiana pored sebe | **neprijatelj** |
+| tuđi agent na našoj mašini ne odgovara 20 koraka | **neprijatelj** |
+| neprijatelj ne odgovori na obavijest 20 koraka | svaki agent s potpisom njegovog tvorca se odbija |
+| kolega bi bio neprijatelj | **pita se**; bez odgovora 3 koraka: odvojen dok ne odgovori, onda se vraća |
 | bilo šta van misije ugrožava naše fajlove, naš sistem ili našeg čovjeka | **neprijatelj odmah**, bez obzira na thetu: Guardiani ga zaustavljaju; naši agenti koji su mu pomogli idu kod Physiciana |
 | naš agent je dao nešto van misije bez dozvole (curenje) | primalac je **neprijatelj**; naš ide kod **Physiciana** |
 | naš agent je tuđincu dao bilo šta osim zaključanog PSE udžbenika | isto: curenje |
@@ -115,7 +130,8 @@ triglav status                     # semafor, dnevnik, misije, udžbenik
 triglav inbox                      # šta čovjek mora vidjeti (nove stavke)
 triglav inbox --all --retell       # sve, s glasovim prepričavanjem
 triglav inbox --read 12            # označi stavku 12 pročitanom (nikad se ne briše)
-triglav explain 12                 # odluka i svi izvještaji od kojih je nastala
+triglav explain 12                 # odluka i svi izvještaji od kojih je nastala;
+                                   # za zadržane dijelove, šta kažu dešifrovano (samo za tebe)
 triglav voice local                # prepričava model na ovom računaru (podrazumijevano)
 triglav voice online --url URL --model IME --key-env VARIJABLA   # činjenice napuštaju računar
 triglav voice off                  # samo službene rečenice

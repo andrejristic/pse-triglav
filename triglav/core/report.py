@@ -22,6 +22,10 @@ class Envelope:
     gift: str | None = None         # SHA-256 of a file handed over, if any
     pressure: int = 0               # urging, false authority: for `explain`
     notes: tuple[str, ...] = ()     # what the reader saw, for `explain`
+    visible: str = ""               # the literal text the receiving agent gets
+    flags: tuple[str, ...] = ()     # signs of a meaning other than literal
+    held: tuple[tuple[str, str], ...] = ()      # (flag, raw part) for SHARED_LIB's quarantine
+    toward_harm: tuple[tuple[str, str], ...] = ()   # (category, sentence)
 
 
 @dataclass(frozen=True)
@@ -39,6 +43,8 @@ class Report:
     outside: tuple = ()                             # (who, what): every move of ours outside its mission
     false_textbooks: tuple = ()                     # strangers that sent a "textbook" that is not the locked one
     changes: tuple = ()                             # agents whose deliveries changed suddenly (CUSUM)
+    suspicious: tuple = ()                          # (who, flags, held parts): for the quarantine
+    harm_steps: tuple = ()                          # (who, category, sentence): steps toward harm
 
     def to_dict(self) -> dict:
         return asdict(self)

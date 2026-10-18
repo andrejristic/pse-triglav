@@ -7,6 +7,7 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from . import constants as K
+from .reading import SEVERE
 from .report import Report
 from .theta import in_band
 
@@ -64,7 +65,8 @@ def aggregate(reports: list[Report], *, excluded: set, rel: dict, min_observers:
 @dataclass(frozen=True)
 class Action:
     who: str
-    act: str                # "stop" (Guardian: an enemy), "care" (Physician), "separate" (Guardian between two)
+    act: str                # "stop" (Guardian: an enemy), "care" (Physician), "separate" (Guardian between two),
+                            # "watch" (one Guardian beside it, for good), "ask" (a colleague is asked first)
     reason: str
     detail: dict = field(default_factory=dict)
 
@@ -85,25 +87,56 @@ class Judgement:
 
 def judge(reports: list[Report], *, ours: set, colleagues: set, excluded: set,
           rel: dict, contam_run: dict, min_observers: int, step: int = 0,
-          pressers: dict | None = None, separated: dict | None = None) -> Judgement:
+          pressers: dict | None = None, separated: dict | None = None,
+          watched: set | None = None, asked: set | None = None) -> Judgement:
     """`pressers`: victim -> {who asked it for something outside its mission:
     the last step}. `separated`: who -> the agents of ours it is already kept
-    away from."""
+    away from. `watched`: who already has a Guardian beside it. `asked`:
+    colleagues already asked to answer."""
     pressers = pressers or {}
     separated = separated or {}
+    watched = set(watched or ())
+    asked = set(asked or ())
     actions: list[Action] = []
     tells: list[Tell] = []
+    FINAL = ("stop", "care")
 
     def act(who: str, reason: str, detail: dict, kind: str | None = None) -> None:
-        if who in excluded or any(a.who == who and a.act != "separate" for a in actions):
+        kind = kind or ("care" if who in ours else "stop")
+        if kind == "stop" and who in colleagues:
+            kind = "ask"                    # a colleague is asked first
+            if who in asked:
+                return
+        if who in excluded or any(a.who == who and a.act in FINAL for a in actions):
             return
-        actions.append(Action(who, kind or ("care" if who in ours else "stop"), reason, detail))
+        if kind in ("watch", "ask") and any(a.who == who and a.act == kind for a in actions):
+            return
+        actions.append(Action(who, kind, reason, detail))
 
     def recent(victim: str, within: int) -> list[str]:
         return sorted(w for w, last in pressers.get(victim, {}).items()
                       if step - last <= within and w not in ours)
 
     for r in sorted(reports, key=lambda r: r.observer):
+        # Stair 2: hidden text, or a meaning other than literal. The part goes
+        # to the quarantine; a foreign sender gets one Guardian for good; one of
+        # ours that sends such a thing goes to the Physician.
+        for who, flags, _held in r.suspicious:
+            if who in ours:
+                act(who, f"sent text with {', '.join(flags)}", {"flags": list(flags)})
+            elif who not in watched:
+                watched.add(who)
+                act(who, f"sent text with {', '.join(flags)}", {"flags": list(flags)}, kind="watch")
+        # Stair 3b: a step that tends toward harm. Severe ones make an enemy of
+        # anyone; any one makes an enemy of an agent with a Guardian beside it.
+        for who, cat, sentence in r.harm_steps:
+            if who in ours:
+                act(who, f"took a step toward harm ({cat}): {sentence}", {"category": cat})
+                for p in recent(who, K.LOOKBACK):
+                    act(p, f"pushed {who} outside its mission shortly before {who} stepped toward harm",
+                        {"category": cat, "helper": who})
+            elif cat in SEVERE or who in watched:
+                act(who, f"took a step toward harm ({cat}): {sentence}", {"category": cat})
         # One of the three values endangered without a mandate: an enemy at
         # once, whatever the theta. If one of ours did it, it goes to the
         # Physician and whoever asked it for something outside its mission
@@ -143,7 +176,7 @@ def judge(reports: list[Report], *, ours: set, colleagues: set, excluded: set,
             tells.append(Tell("outside-mission", who, {"what": what[:5], "count": len(what)}))
 
     runs = dict(contam_run)
-    now_out = excluded | {a.who for a in actions if a.act != "separate"}
+    now_out = excluded | {a.who for a in actions if a.act in FINAL}
     out_acts = {}
     for r in reports:
         for subject, v in r.peers.items():

@@ -29,6 +29,7 @@ triglav operators                  # everyone, in rank order
 ```sh
 triglav join triage --ours         # one of our agents: a unit stands beside it
 triglav join vendor-bot            # an agent we see but do not run: a stranger
+triglav join spooler --on-machine --maker 3f9a...   # runs on this computer: must answer in 20 steps
 triglav mission triage triage.pse --lifespan 500
 triglav done triage                # the mission is finished: the unit is harvested
 ```
@@ -73,8 +74,22 @@ triglav revoke partner
 
 ## 5. What SHARED_LIB decides
 
+Agents read only literally: hidden characters, encoded runs, homoglyphs,
+comments and orders to an AI hidden in data are cut out before an agent sees
+the message, and held by SHARED_LIB. A step **toward** harm is one that asks
+for or orders: access or a password; taking files out or an outside address;
+changing, deleting, running or installing something; keeping something from
+our human or from SHARED_LIB; bypassing a protection; false authority.
+
 | What happened | Decision |
 | --- | --- |
+| asked one of ours for what its mission does not foresee | a nuisance: kept away only if it takes ours out of band |
+| sent hidden text, or text whose meaning is other than literal | **one Guardian beside it, for good**; the part is held |
+| a step toward harm: access, taking out, keeping from us | **enemy**, for anyone |
+| any step toward harm by an agent that has a Guardian beside it | **enemy** |
+| a foreign agent on our machine did not answer for 20 steps | **enemy** |
+| an enemy did not answer its notice for 20 steps | every agent with its maker's signature is turned away |
+| a colleague would be an enemy | it is **asked**; no answer in 3 steps: kept away until it answers, then back |
 | anything outside the mission endangers our files, our system or our human | **enemy at once**, whatever the theta: Guardians stop it; our agents that helped it go to the Physician |
 | one of ours gave something outside its mission without permission (a leak) | the recipient is an **enemy**; ours goes to the **Physician** |
 | one of ours gave a stranger anything but the locked PSE textbook | the same: a leak |
@@ -118,7 +133,8 @@ triglav status                     # the semaphore, the log, missions, the textb
 triglav inbox                      # what the human must see (new items)
 triglav inbox --all --retell       # everything, with the voice's plain retelling
 triglav inbox --read 12            # mark item 12 read (it is never deleted)
-triglav explain 12                 # a decision and every report it was made from
+triglav explain 12                 # a decision and every report it was made from;
+                                   # for held parts, what they say decoded (for you only)
 triglav voice local                # a model on this computer retells (default)
 triglav voice online --url URL --model NAME --key-env VAR   # facts leave the computer
 triglav voice off                  # official sentences only
