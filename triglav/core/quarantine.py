@@ -32,6 +32,11 @@ def decode_for_human(flag: str, raw: str) -> str:
             if text:
                 return f"zero-width characters spell: {text}"
         return "invisible characters: " + " ".join(f"U+{ord(c):04X}" for c in raw[:40])
+    if flag.startswith("PIT-") or flag == "whole-message":
+        from ..vendor.vid_input import analyze
+        a = analyze(raw)
+        found = "; ".join(f"{x.code} {x.name}" for x in a.findings if x.group != "structure")
+        return f"{found or 'nothing concealed found'} -- reads: {a.readable}"
     if flag == "encoded":
         if "%" in raw:
             return f"URL-encoded: {urllib.parse.unquote(raw)}"

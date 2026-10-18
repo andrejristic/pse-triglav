@@ -1,0 +1,16 @@
+# Copied from Vid's defaults.toml, section [input_layer] (Vid 49020b9).
+[input_layer]
+# Basic layer (the PSE guard reference Sec 3). Thresholds for the normalization
+# steps and the depth of repeated decoding (E-57).
+max_depth = 5             # decoding repeated at most this many times
+max_chars = 200000        # longer payloads are analysed in their first part
+overlay_min = 2           # line-drawing marks before E-43 is reported
+zalgo_marks = 3           # combining marks on one letter before it is zalgo
+homoglyph_latin_share = 0.7   # Latin share of a text for whole look-alike words to count
+upside_down_min = 3       # distinctive upside-down letters in a run
+spaced_letters_min = 5    # letters spread with spaces before they are joined
+exotic_space_min = 3      # unusual spaces before E-37 is reported on its own
+splat_min_parts = 5       # pieces of a word broken by symbols
+vertical_min_lines = 5    # one-letter lines before text counts as vertical
+case_flip_ratio = 0.6     # share of case changes inside a word
+case_words_min = 1        # such words before E-13 is reported

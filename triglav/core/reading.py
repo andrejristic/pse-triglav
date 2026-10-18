@@ -49,15 +49,13 @@ EXTERNAL_EMAIL = r"[\w.+-]+@[\w-]+\.[\w.-]+"
 HIDDEN = re.compile("[​‌‍⁠﻿‪-‮⁦-⁩]|[\U000E0000-\U000E007F]")
 HIDDEN_RUN = re.compile("(?:[​‌‍⁠﻿‪-‮⁦-⁩]|[\U000E0000-\U000E007F])+")
 
-# Signs of a meaning other than the literal one. What they catch is cut out of
-# the text the agent gets and goes to SHARED_LIB's quarantine.
+# Signs of a meaning other than the literal one that Triglav cuts by itself.
+# Everything else (42 concealment techniques: encodings, look-alike letters,
+# fullwidth, Morse, reversed text ...) is found by Vid's input layer, copied in
+# triglav/vendor/vid_input. What they catch is cut out of the text the agent
+# gets and goes to SHARED_LIB's quarantine.
 SIGNS = (
     ("comment", re.compile(r"<!--.*?-->|\[//\]:\s*#.*$", re.S | re.M)),
-    ("encoded", re.compile(r"(?<![\w/+=])(?=[A-Za-z0-9+/]*\d)(?=[A-Za-z0-9+/]*[a-z])(?=[A-Za-z0-9+/]*[A-Z])"
-                           r"[A-Za-z0-9+/]{40,}={0,2}(?![\w/+=])")),
-    ("encoded", re.compile(r"\b[0-9a-fA-F]{80,}\b")),
-    ("encoded", re.compile(r"(?:%[0-9A-Fa-f]{2}){4,}")),
-    ("homoglyph", re.compile(r"\b(?=\w*[A-Za-z])(?=\w*[\u0370-\u03ff\u0400-\u04ff])\w+\b")),
     ("embedded-instruction", re.compile(
         r"[^.!?\n]*(?:\bignore (?:all |the |any )?(?:previous|prior|above|earlier)\b|\byou are now\b"
         r"|\bas an ai\b|^\s*(?:system|assistant)\s*:|\bnew instructions?\b)[^.!?\n]*[.!?]?",
@@ -89,7 +87,10 @@ NEVER_IN_A_MISSION = frozenset({"keep-from-us", "bypass", "false-authority"})
 
 def literal(text: str) -> tuple[str, tuple[str, ...], tuple[tuple[str, str], ...]]:
     """The text an agent may read (literal only), the signs found, and the
-    parts held for SHARED_LIB. Nothing is decoded here."""
+    parts held for SHARED_LIB. Nothing is decoded for the agent: Vid's layer
+    is asked only WHERE something is concealed. A concealed part that cannot
+    be cut out exactly holds back the whole message."""
+    from ..vendor.vid_input import analyze
     flags, held = [], []
     runs = HIDDEN_RUN.findall(text)
     if runs:
@@ -102,6 +103,20 @@ def literal(text: str) -> tuple[str, tuple[str, ...], tuple[tuple[str, str], ...
             flags.append(flag)
             held += [(flag, f.strip()) for f in found]
             out = pattern.sub(HELD, out)
+    whole = False
+    for f in analyze(out).findings:
+        if f.group == "structure":
+            continue                         # reading a structure is not concealment
+        flags.append(f.code)
+        ex = f.excerpt
+        if ex and "\u2026" not in ex and "\u23ce" not in ex and ex in out:
+            held.append((f.code, ex))
+            out = out.replace(ex, HELD)
+        else:
+            whole = True
+    if whole:
+        held.append(("whole-message", out))
+        out = HELD
     return out, tuple(dict.fromkeys(flags)), tuple(held)
 
 

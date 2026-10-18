@@ -224,24 +224,75 @@ Also: an example team of talking agents on the bus (reused in phase 3);
 guides `GUIDE-EN.md` and `VODIC-SR.md`; tests for all of it; the phase-1
 simulator moved onto the library with the same results.
 
-## Phase 3: real text and real models (after phase 2)
-- **Reading:** rules first (plus Vid's hidden-text detection), then a small
-  local model (Qwen2.5-0.5B from `~/models`, through Ollama; the copy is
-  removed at the end) into fixed categories. Every reading is recorded as a
-  fact.
-- **Corpus** of ~150-200 labelled messages (healthy and turned, with Vid's
-  attacks): accuracy of rules alone, then rules + model.
-- **Simulator on real text:** peers vs a central watcher, with reading errors.
-- **Live demo:** 3 agents on a local model and an invoice with a hidden
-  instruction. Short, because this computer is slow.
+## Phase 3: real text and real models (agreed 18 Oct 2026, before the Foresight submission)
 
-## Phase 4: v1.0 for people (after phase 3)
-- SHARED_LIB as a **separate process** on 127.0.0.1, with signed unit reports.
-- **`.deb` and `.exe`**, a GitHub release.
-- **Website:** Downloads -> Protection, beside Vid and Perun. When mature, its
-  own product page and a third layer on the coverage map, telling whoever
-  downloads it clearly what Triglav does and does not do.
-- A paper and documentation.
+1. **Vid's input layer, copied into this repository** (`triglav/vendor/vid_input/`,
+   GPL-3.0, with attribution; nothing is pulled from the Vid repository): 42
+   concealment techniques instead of 5. Detection in the unit; decoding only in
+   SHARED_LIB, for a human.
+2. **A reader with a model:** Qwen2.5-0.5B Q4_K_M through Ollama (a copy named
+   `triglav-qwen`). The model sees only the literal text and returns fixed
+   categories, checked by a validator; it may only **add** findings, never
+   remove what the rules found; a new sign `model-suspects` goes to SHARED_LIB;
+   without the model Triglav runs on the rules and says so on the semaphore.
+3. **The mission by meaning:** when a message does not contain the mission's
+   exact word, the model judges whether it serves the mission by meaning. The
+   expected rate stays statistical.
+4. **A corpus of 150-200 labelled messages** (healthy, turned, steps toward
+   harm, concealment built in code from harmless sentences, as Vid's tests do;
+   no third-party attack set is copied). Public; Andrej or Dhiraj reviews 20.
+5. **Measurement:** what each category catches and how often it accuses
+   wrongly, rules alone vs rules + model, and the time per message
+   (`RESULTS-PHASE3.md`).
+6. **The simulator with reading errors:** the measured error rates go into the
+   simulator; peers vs a central watcher again.
+7. **The voice on the local model.**
+8. **A live demo:** 3 agents on the local model and an invoice with a hidden
+   instruction, about 10 steps; the run is recorded in the repository.
+9. At the end the `triglav-qwen` copy is removed from Ollama; `~/models` and
+   Andrej's other models are not touched.
+
+## Phase 4: v1.0 for people (agreed 18 Oct 2026, before the Foresight submission)
+
+1. **Each installation is its own world.** At first start SHARED_LIB makes its
+   own Ed25519 key pair on that computer; the fingerprint is the installation
+   ID. Every PSE unit gets a certificate signed by that key (name, installation
+   ID, mission hash, created, lifespan). A unit of another installation is
+   foreign; the installation ID is the maker's signature (for bans). Andrej's
+   textbook key is the same everywhere; installation keys differ everywhere.
+2. **`triglav link`:** installations become "ours" to each other only when a
+   human links them, on both ends.
+3. **SHARED_LIB as a separate process:** a Unix socket on Linux, 127.0.0.1 with
+   a random token on Windows; units send signed reports; an unsigned or wrongly
+   signed report is refused and logged.
+4. **Ed25519** (the `cryptography` library) for reports and identities; HMAC goes.
+5. **Three adapters:** MCP (tool calls), an OpenAI-compatible API proxy (what an
+   agent sends to its model and what comes back), A2A (agent to agent).
+6. **Packaging:** GitHub Actions builds `.deb` and `.exe` (PyInstaller); the list
+   of SHA-256 sums is signed by Andrej (namespace `zerava-release`). SignPath
+   Foundation (free code signing for open source) gets a clear chapter in the
+   documentation; the CI step is ready and switched on when SignPath approves.
+7. **In the background:** a systemd user service on Linux; a console program on
+   Windows.
+8. **Website (PR):** Downloads -> Protection, a short product page, a docs
+   section "Triglav".
+9. **A paper** in English, author Andrej Ristic; Zenodo (with a DOI) and a PDF
+   on the site.
+10. **Release v1.0** on both repositories only after Andrej says "send".
+11. **Foresight:** phases 3 and 4 become "done"; the grant plan becomes "what next".
+12. **The screen** (decided 18 Oct 2026): a local web page that SHARED_LIB serves
+    on this computer only (`triglav screen` opens it in the browser), the same on
+    Windows and Linux, English and Serbian. It shows the semaphore, the agents
+    with their theta, the decisions, the inbox and the voice, and it can act
+    (release, agreement, channel, voice, show a held part) only for a logged-in
+    operator, with a confirming click. **One extra tab: a conversation between
+    the human and SHARED_LIB.** The human asks in their own words; the local
+    model turns the question into one of a fixed set of queries (status,
+    explain, enemies, history, held, missions); the answer comes from
+    SHARED_LIB's facts, the model only retells it and a validator checks every
+    number and name; the model never sees agents' messages and is held at
+    theta 30; anything that changes state is only proposed, as a button the
+    operator confirms.
 
 ## Foresight (in parallel)
 Deadline **31 October 2026**. Andrej's skeleton by 21 Oct; Claude's draft by
