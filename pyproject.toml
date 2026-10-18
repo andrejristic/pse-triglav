@@ -10,7 +10,7 @@ readme = "README.md"
 license = { text = "GPL-3.0-or-later" }
 authors = [{ name = "Andrej Ristić" }]
 requires-python = ">=3.10"
-dependencies = []
+dependencies = ["cryptography>=41"]
 
 [project.urls]
 Homepage = "https://www.zeravatech.ca"
@@ -20,7 +20,10 @@ Source = "https://github.com/zeravatechnologies/pse-triglav"
 triglav = "triglav.cli:main"
 
 [tool.setuptools]
-packages = ["triglav", "triglav.core", "triglav.shell"]
+packages = ["triglav", "triglav.core", "triglav.shell", "triglav.screen", "triglav.vendor",
+            "triglav.vendor.vid_input"]
 
 [tool.setuptools.package-data]
 triglav = ["keys/allowed_signers"]
+"triglav.screen" = ["index.html", "app.js"]
+"triglav.vendor.vid_input" = ["defaults.toml", "VENDORED.md"]

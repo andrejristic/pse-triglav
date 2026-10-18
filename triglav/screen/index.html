@@ -1,0 +1,45 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PSE Triglav</title>
+<style>
+:root{--bg:#f6f5f2;--card:#fff;--text:#1f1e1c;--muted:#6b6a65;--line:#dedcd5;--ok:#2f6b1f;--okbg:#e8f2dc;--bad:#9b2c2c;--badbg:#fbe9e9;--acc:#185fa5;--accbg:#e6f1fb;--warn:#7a4b06;--warnbg:#faeeda}
+@media (prefers-color-scheme:dark){:root{--bg:#1d1c1a;--card:#262522;--text:#efede6;--muted:#a3a198;--line:#3a3935;--ok:#b7dc8e;--okbg:#2b3a1f;--bad:#f0a0a0;--badbg:#4a2020;--acc:#9cc6f0;--accbg:#18324d;--warn:#f3c77a;--warnbg:#45300c}}
+*{box-sizing:border-box}body{margin:0;background:var(--bg);color:var(--text);font:15px/1.5 system-ui,sans-serif}
+header{display:flex;flex-wrap:wrap;gap:10px;align-items:center;padding:12px 16px;border-bottom:1px solid var(--line);background:var(--card)}
+header b{font-size:17px}.muted{color:var(--muted);font-size:13px}.pill{font-size:12px;padding:2px 10px;border-radius:8px;white-space:nowrap}
+.ok{background:var(--okbg);color:var(--ok)}.bad{background:var(--badbg);color:var(--bad)}.acc{background:var(--accbg);color:var(--acc)}.warn{background:var(--warnbg);color:var(--warn)}.plain{background:var(--bg);color:var(--muted)}
+nav{display:flex;gap:4px;padding:8px 16px}nav button,button{font:inherit;font-size:13px;padding:4px 12px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text);cursor:pointer}
+nav button.on{border-color:var(--acc);color:var(--acc)}main{padding:0 16px 24px;display:grid;gap:12px;grid-template-columns:minmax(0,1.3fr) minmax(0,1fr)}
+@media (max-width:760px){main{grid-template-columns:minmax(0,1fr)}}section{background:var(--card);border:1px solid var(--line);border-radius:12px;padding:12px 14px}
+h2{font-size:14px;font-weight:500;color:var(--muted);margin:0 0 8px}.row{display:flex;align-items:center;gap:8px;margin:6px 0;font-size:14px}
+.name{width:110px;overflow:hidden;text-overflow:ellipsis}.bar{flex:1;height:8px;border-radius:4px;background:var(--bg);position:relative}
+.band{position:absolute;left:25%;width:10%;height:8px;background:var(--okbg)}.dot{position:absolute;width:4px;height:8px;border-radius:2px}
+.num{width:44px;text-align:right}.item{border:1px solid var(--line);border-radius:8px;padding:8px 10px;margin:6px 0;font-size:13px}
+.item.new{border-color:var(--acc)}#chatlog{min-height:220px;max-height:420px;overflow:auto;font-size:14px}
+.q{text-align:right;margin:6px 0}.a{margin:6px 0;padding:8px 10px;background:var(--bg);border-radius:8px}
+form{display:flex;gap:6px;margin-top:8px}input{flex:1;font:inherit;padding:6px 10px;border:1px solid var(--line);border-radius:8px;background:var(--card);color:var(--text)}
+.hide{display:none}
+</style>
+</head>
+<body>
+<header>
+  <b>PSE Triglav</b><span class="muted" id="who"></span>
+  <span id="log" class="pill plain"></span><span id="tb" class="pill acc"></span>
+  <span style="margin-left:auto"></span><button id="lang">SR</button>
+</header>
+<nav><button id="t-main" class="on" data-i="overview">Overview</button><button id="t-chat" data-i="talk">Talk to SHARED_LIB</button></nav>
+<main id="v-main">
+  <section><h2 data-i="agents">Agents and theta (25-35)</h2><div id="agents"></div></section>
+  <section><h2 data-i="inbox">Inbox</h2><div id="inbox"></div></section>
+</main>
+<main id="v-chat" class="hide">
+  <section style="grid-column:1/-1"><h2 data-i="talkh">Ask SHARED_LIB in your own words. It answers from its facts only; anything that changes something is only proposed.</h2>
+  <div id="chatlog"></div>
+  <form id="ask"><input id="q" autocomplete="off" placeholder="Who is stopped, and why?"><button data-i="send">Ask</button></form></section>
+</main>
+<script src="app.js"></script>
+</body>
+</html>

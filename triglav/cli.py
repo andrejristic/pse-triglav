@@ -151,6 +151,22 @@ def cmd_serve(a, lib):
         srv.server_close()
 
 
+def cmd_screen(a, lib):
+    import webbrowser
+    from .shell.screen import Interpreter, make_screen
+    st = lib.settings()
+    srv, url = make_screen(lib, session(), Interpreter(model=st.get("reader_model", "phi4-mini")), port=a.port)
+    print(f"the screen: {url}  (this computer only; Ctrl+C stops it)")
+    if not a.no_browser:
+        webbrowser.open(url)
+    try:
+        srv.serve_forever()
+    except KeyboardInterrupt:
+        pass
+    finally:
+        srv.server_close()
+
+
 def cmd_link(a, lib):
     if a.action == "show":
         print(f"this installation: {lib.installation}")
@@ -331,6 +347,10 @@ def build() -> argparse.ArgumentParser:
     sv = sub.add_parser("serve", help="run SHARED_LIB as its own process on this computer")
     sv.add_argument("--tcp", action="store_true", help="127.0.0.1 with a token instead of a Unix socket")
     sv.set_defaults(fn=cmd_serve)
+    sc = sub.add_parser("screen", help="open the screen in the browser (this computer only)")
+    sc.add_argument("--port", type=int, default=0)
+    sc.add_argument("--no-browser", action="store_true")
+    sc.set_defaults(fn=cmd_screen)
     lk = sub.add_parser("link", help="link another installation (a human, on both ends)")
     lk.add_argument("action", choices=["show", "add", "remove"])
     lk.add_argument("value", nargs="?", help="add: the other installation's public key; remove: its ID")

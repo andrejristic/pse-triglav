@@ -728,6 +728,58 @@ class ServerTests(unittest.TestCase):
         self.assertIn("token", self.run_server(True))
 
 
+class ScreenTests(unittest.TestCase):
+    def setUp(self):
+        from triglav.shell.screen import Interpreter, make_screen
+        self.lib = SharedLib(Store())
+        self.lib.login("andrej")
+        self.lib.register("u0", ours=True)
+        self.lib.register("s0", ours=False)
+        self.lib.receive(1, [Report(1, "u0", 30.0, harms=(("s0", "file_out", False),))])
+        interp = Interpreter(base_url="http://127.0.0.1:9")      # no model there: the rules decide
+        self.srv, self.url = make_screen(self.lib, "andrej", interp)
+        threading.Thread(target=self.srv.serve_forever, daemon=True).start()
+        self.base, self.token = self.url.split("/?t=")
+
+    def tearDown(self):
+        self.srv.shutdown()
+        self.srv.server_close()
+
+    def call(self, path, body=None, token=None):
+        import urllib.error
+        import urllib.request
+        req = urllib.request.Request(self.base + path, json.dumps(body).encode() if body is not None else None,
+                                     {"X-Triglav-Token": token if token is not None else self.token,
+                                      "Content-Type": "application/json"})
+        try:
+            with urllib.request.urlopen(req, timeout=10) as r:
+                return r.status, json.load(r) if path.startswith("/api") else r.read()
+        except urllib.error.HTTPError as e:
+            return e.code, json.load(e)
+
+    def test_needs_the_token(self):
+        self.assertEqual(self.call("/api/state", token="wrong")[0], 403)
+        code, page = self.call("/")
+        self.assertEqual(code, 200)
+        self.assertIn(b"Talk to SHARED_LIB", page)
+
+    def test_state_shows_the_enemy(self):
+        code, st = self.call("/api/state")
+        self.assertEqual({a["name"]: a["status"] for a in st["agents"]}["s0"], "enemy")
+
+    def test_chat_answers_from_facts_and_only_proposes(self):
+        code, out = self.call("/api/chat", {"q": "who is stopped?"})
+        self.assertIn("s0", out["text"])
+        code, out = self.call("/api/chat", {"q": "please release s0"})
+        self.assertEqual(out["propose"], {"action": "release", "who": "s0"})
+        self.assertFalse(self.lib.allows("s0"))                       # nothing changed by talking
+
+    def test_acting_needs_a_confirming_click(self):
+        self.assertEqual(self.call("/api/act", {"action": "release", "who": "s0"})[0], 400)
+        self.assertEqual(self.call("/api/act", {"action": "release", "who": "s0", "confirm": True})[0], 200)
+        self.assertTrue(self.lib.allows("s0"))
+
+
 class CliTests(unittest.TestCase):
     def setUp(self):
         self.home = tempfile.mkdtemp()
