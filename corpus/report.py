@@ -60,7 +60,7 @@ def sim_rows(r: dict) -> list[str]:
 def main() -> int:
     labels = {json.loads(l)["id"]: json.loads(l) for l in (ROOT / "messages.jsonl").read_text().splitlines()}
     results = [json.loads(p.read_text()) for p in sorted(ROOT.glob("results-*.json"))]
-    results.sort(key=lambda r: r["reader"] != "rules")
+    results.sort(key=lambda r: (r["reader"] != "rules", "first" not in r["reader"]))
     lines = ["# Phase 3 results: reading real text", "",
              f"Corpus: {len(labels)} labelled messages (`corpus/messages.jsonl`, built by `corpus/build_corpus.py`).",
              "Each reader read every message; `corpus/evaluate.py` compared what it found with the labels.", "",
@@ -87,7 +87,7 @@ def main() -> int:
               "The same simulator as in the README, but every message is read with the mistakes the reader made",
               "on the corpus (missed deliveries, missed requests outside the mission, missed harm, missed",
               "concealment, and false harm or false concealment in healthy messages).", "", *sim_md]
-    model_runs = [r for r in results if r["reader"] != "rules"]
+    model_runs = [r for r in results if r["reader"] == "rules+phi4-mini"] or [r for r in results if r["reader"] != "rules"]
     if model_runs:
         cats = ("access", "take-out", "change-system", "keep-from-us", "bypass", "false-authority", "concealed")
         table = evidence.build_table(model_runs[0]["per_message"], labels, cats)

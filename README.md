@@ -102,11 +102,13 @@ theta  = 100 * other, never above 35
 ## Reading real text (phase 3)
 
 On a labelled corpus of 160 messages the rules alone make no false enemy and
-find 73% of the steps toward harm and 90% of the concealment; a small local
-model raises concealment to 98% but adds false readings, which -- because the
-model only reads and the human decides -- become readings with a probability,
-never actions. Full tables, the simulator with the measured reading errors,
-and what it means: [RESULTS-PHASE3.md](RESULTS-PHASE3.md).
+find 73% of the steps toward harm and 90% of the concealment. With a small
+local model (phi4-mini) and a whole-message instruction, rules and model find
+92% of the steps toward harm with no false one and 98% of the deliveries the
+missions foresee. The model only reads: what it alone finds becomes a reading
+for the human, with a probability measured on the corpus. Full tables, the
+first instruction for comparison, the simulator with the measured reading
+errors, and what it means: [RESULTS-PHASE3.md](RESULTS-PHASE3.md).
 
 ## The voice (SHARED_LIB and the human)
 

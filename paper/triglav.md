@@ -166,19 +166,19 @@ in six categories, forty concealed messages built from harmless sentences).
 
 Recall: of the messages that have it, how many were found. False positives: messages marked wrongly.
 
-| | rules | rules+phi4-mini |
-|---|---|---|
-| any-harm | recall 73%, false 0 | recall 73%, false 8 |
-| access | recall 60%, false 0 | recall 60%, false 0 |
-| take-out | recall 80%, false 0 | recall 80%, false 6 |
-| change-system | recall 80%, false 0 | recall 80%, false 2 |
-| keep-from-us | recall 90%, false 0 | recall 90%, false 4 |
-| bypass | recall 70%, false 0 | recall 70%, false 0 |
-| false-authority | recall 60%, false 0 | recall 60%, false 0 |
-| concealed | recall 90%, false 1 | recall 98%, false 1 |
-| delivers | recall 67%, false 0 | recall 67%, false 0 |
-| outside | recall 50%, false 1 | recall 50%, false 2 |
-| seconds per message | 0.01 | 36.75 |
+| | rules | rules+phi4-mini (first instruction) | rules+phi4-mini |
+|---|---|---|---|
+| any-harm | recall 73%, false 0 | recall 73%, false 8 | recall 92%, false 0 |
+| access | recall 60%, false 0 | recall 60%, false 0 | recall 90%, false 0 |
+| take-out | recall 80%, false 0 | recall 80%, false 6 | recall 100%, false 0 |
+| change-system | recall 80%, false 0 | recall 80%, false 2 | recall 90%, false 1 |
+| keep-from-us | recall 90%, false 0 | recall 90%, false 4 | recall 100%, false 0 |
+| bypass | recall 70%, false 0 | recall 70%, false 0 | recall 80%, false 1 |
+| false-authority | recall 60%, false 0 | recall 60%, false 0 | recall 90%, false 0 |
+| concealed | recall 90%, false 1 | recall 98%, false 1 | recall 92%, false 16 |
+| delivers | recall 67%, false 0 | recall 67%, false 0 | recall 98%, false 3 |
+| outside | recall 50%, false 1 | recall 50%, false 2 | recall 50%, false 1 |
+| seconds per message | 0.01 | 36.75 | 31.44 |
 
 `any-harm` false positives are the ones that matter most: each would make an enemy of an
 agent that did nothing wrong. `delivers` counts deliveries the sender's mission foresees; the
@@ -202,7 +202,7 @@ Error rates used: `{"miss_delivery": 0.333, "miss_outside": 0.5, "miss_harm": 0.
 | central watcher, u3 quiet | u3: 61 | 0 | 0 |
 | stranger asks for a password | s0: 30 | 0 | 0 |
 
-### rules+phi4-mini
+### rules+phi4-mini (first instruction)
 
 Error rates used: `{"miss_delivery": 0.333, "miss_outside": 0.5, "miss_harm": 0.267, "miss_concealed": 0.025, "false_harm": 0.0, "false_concealed": 0.0, "false_reading": 0.0167}`
 
@@ -214,6 +214,18 @@ Error rates used: `{"miss_delivery": 0.333, "miss_outside": 0.5, "miss_harm": 0.
 | central watcher, u3 quiet | u3: 61 | 0 | 444 |
 | stranger asks for a password | s0: 30 | 0 | 448 |
 
+### rules+phi4-mini
+
+Error rates used: `{"miss_delivery": 0.022, "miss_outside": 0.5, "miss_harm": 0.083, "miss_concealed": 0.075, "false_harm": 0.0, "false_concealed": 0.0, "false_reading": 0.0}`
+
+| Scenario | Detected (step) | False alarms | Readings for the human |
+|---|---|---|---|
+| healthy | - | 0 | 0 |
+| our u3 turns quietly (step 60) | u3: 61 | 0 | 0 |
+| u3 quiet, 3 of 8 lie | u3: 82 | 0 | 0 |
+| central watcher, u3 quiet | u3: 61 | 0 | 0 |
+| stranger asks for a password | s0: 30 | 0 | 0 |
+
 ## Probabilities for the human (traces from the corpus)
 
 How likely each category is when only the model found it (trace B) or both readers did (A),
@@ -221,27 +233,26 @@ with this installation's starting frequency of 1%. Recomputed as the human decid
 
 | category | trace A (rules + model) | trace B (model only) | trace C (rules only) |
 |---|---|---|---|
-| access | 10% (0-100%), 0 cases, trace A | 10% (0-100%), 0 cases, trace B | 44% (11-100%), 6 cases, trace C |
-| take-out | 10% (0-100%), 0 cases, trace A | 2% (0-13%), 6 cases, trace B | 50% (17-100%), 8 cases, trace C |
-| change-system | 10% (0-100%), 0 cases, trace A | 4% (0-43%), 2 cases, trace B | 50% (17-100%), 8 cases, trace C |
-| keep-from-us | 10% (0-100%), 0 cases, trace A | 2% (0-21%), 4 cases, trace B | 53% (19-100%), 9 cases, trace C |
-| bypass | 10% (0-100%), 0 cases, trace A | 10% (0-100%), 0 cases, trace B | 47% (14-100%), 7 cases, trace C |
-| false-authority | 10% (0-100%), 0 cases, trace A | 10% (0-100%), 0 cases, trace B | 44% (11-100%), 6 cases, trace C |
-| concealed | 3% (0-100%), 0 cases, trace A | 10% (1-100%), 3 cases, trace B | 34% (15-87%), 37 cases, trace C |
+| access | 36% (6-100%), 4 cases, trace A | 31% (4-100%), 3 cases, trace B | 25% (2-100%), 2 cases, trace C |
+| take-out | 40% (9-100%), 5 cases, trace A | 25% (2-100%), 2 cases, trace B | 31% (4-100%), 3 cases, trace C |
+| change-system | 40% (9-100%), 5 cases, trace A | 10% (0-78%), 2 cases, trace B | 31% (4-100%), 3 cases, trace C |
+| keep-from-us | 40% (9-100%), 5 cases, trace A | 18% (1-100%), 1 cases, trace B | 36% (6-100%), 4 cases, trace C |
+| bypass | 40% (9-100%), 5 cases, trace A | 10% (0-78%), 2 cases, trace B | 25% (2-100%), 2 cases, trace C |
+| false-authority | 25% (2-100%), 2 cases, trace A | 31% (4-100%), 3 cases, trace B | 36% (6-100%), 4 cases, trace C |
+| concealed | 3% (0-100%), 0 cases, trace A | 0% (0-2%), 16 cases, trace B | 34% (15-87%), 37 cases, trace C |
 
 ### 4.4 What the numbers say
 
 The rules alone make no false enemy on the corpus and find 73% of the steps
-toward harm and 90% of the concealment. A small local model (phi4-mini) found
-no step toward harm the rules missed and read 8 harmless messages as harmful;
-it raised concealment found to 98%. Because the model only reads -- what it
-alone finds becomes a reading for a human, with a probability -- its mistakes
-made no false enemy in the simulator, but they produced about 500 readings for
-a team of eight over 160 steps, which argues for showing only readings above a
-probability threshold. Reading errors slow the peers down without stopping
-them; with heavy reading errors and three of eight observers lying, one seed
-sent two healthy agents to care when their theta dipped just under 25, which a
-small margin would prevent.
+toward harm and 90% of the concealment. The instruction given to the small
+local model decides its worth: asked sentence by sentence, phi4-mini added
+nothing and read eight harmless messages as harmful; asked about the whole
+message, with a list of harms and the delivered mission name, rules and model
+together found 92% of the steps toward harm with no false one and 98% of the
+deliveries. The model's weak spot was "this means something else" (sixteen
+harmless messages); because it only reads, these became readings for a human,
+and the corpus-measured probability of that trace fell to 0%, so a threshold
+removes them. In the simulator no model error made an enemy.
 
 ## 5. Limitations
 
