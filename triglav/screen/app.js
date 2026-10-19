@@ -5,7 +5,7 @@ let lang = "en";
 const shown = {};            // held parts already shown to the operator, by id
 const SR = {overview: "Pregled", talk: "Razgovor sa SHARED_LIB", agents: "Agenti i theta (25-35)", inbox: "Inbox",
   talkh: "Pitaj SHARED_LIB svojim riječima. Odgovara samo iz svojih činjenica; sve što nešto mijenja samo predlaže.",
-  send: "Pitaj", isproblem: "Jeste problem", notproblem: "Nije problem", read: "Pročitano", show: "Prikaži", release: "Pusti", sure: "Sigurno?",
+  below: "čitanja ispod 20% je zapisano, ne prikazuje se (triglav explain)", send: "Pitaj", isproblem: "Jeste problem", notproblem: "Nije problem", read: "Pročitano", show: "Prikaži", release: "Pusti", sure: "Sigurno?",
   ours: "naš", colleague: "kolega", stranger: "tuđinac", enemy: "neprijatelj", physician: "Physician",
   watched: "Guardian pored njega", "kept-away": "odvojen", harvested: "požnjeven", intact: "dnevnik netaknut",
   broken: "dnevnik OŠTEĆEN", textbook: "udžbenik zaključan", operator: "operater"};
@@ -71,7 +71,9 @@ async function refresh() {
   log.className = "pill " + (s.log_ok ? "ok" : "bad");
   document.getElementById("tb").textContent = s.textbook ? t("textbook", "textbook locked") + " " + s.textbook.slice(0, 8) : "";
   const ag = document.getElementById("agents"); ag.replaceChildren(...s.agents.map(agentRow));
-  const ib = document.getElementById("inbox"); ib.replaceChildren(...s.inbox.slice().reverse().map(inboxItem));
+  const ib = document.getElementById("inbox");
+  const below = el("div", "muted", s.readings_below ? `${s.readings_below} ${t("below", "readings below 20% were logged, not shown (triglav explain)")}` : "");
+  ib.replaceChildren(below, ...s.inbox.slice().reverse().map(inboxItem));
 }
 
 document.getElementById("ask").onsubmit = async (ev) => {

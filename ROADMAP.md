@@ -284,6 +284,12 @@ simulator moved onto the library with the same results.
   already applies (the rules found a step toward harm), SHARED_LIB acts as
   before and the probability is only shown.
 
+- **Decided after the measurements (19 Oct 2026).** A reading is shown to the
+  human only when its probability is at least **20%**; below that it is
+  logged and counted, never lost and never acted on. The Physician takes one
+  of ours only after the peers agree it is out of band for **3** consecutive
+  steps (was 2); the band itself stays 25-35, untouched.
+
 ## Phase 4: v1.0 for people (agreed 18 Oct 2026, before the Foresight submission)
 
 1. **Each installation is its own world.** At first start SHARED_LIB makes its

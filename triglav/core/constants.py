@@ -48,9 +48,14 @@ COLLEAGUE_ANSWER_STEPS = 3
 
 # SHARED_LIB's aggregation of peer measurements.
 MIN_OBSERVERS = 2          # fewer independent observers -> no conclusion
-CONTAMINATION_RUN = 2      # consecutive steps the peers agree a unit is out of band
+CONTAMINATION_RUN = 3      # consecutive steps the peers agree a unit is out of band (3, decided 19 Oct 2026)
 AGREEMENT_MAX_SPREAD = 4.0 # weighted MAD of peer thetas above this = observers disagree
 DELTA_ALERT = 8.0          # |self-reported theta - peer theta| above this = tell a human
+
+# Readings (what only a model read): shown to the human when their probability
+# is at least this; below it they are logged and counted, never lost and never
+# acted on (decided 19 Oct 2026). A reading without a measurement is shown.
+READING_THRESHOLD = 0.20
 
 # The voice: SHARED_LIB's link to the human sits at theta 30, always.
 VOICE_THETA = 30.0

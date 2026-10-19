@@ -346,6 +346,8 @@ class RuleTests(unittest.TestCase):
         j = self.judge(*reps)
         self.assertEqual(j.actions, ())
         j = self.judge(*reps, contam_run=j.contam_run)
+        self.assertEqual(j.actions, ())                                 # 2 steps: not yet (3, decided 19 Oct)
+        j = self.judge(*reps, contam_run=j.contam_run)
         self.assertEqual(self.acts(j), [("u2", "care")])
 
     def test_a_pushed_victim_that_makes_no_new_move_is_not_contaminated(self):
@@ -478,6 +480,13 @@ class SharedLibTests(unittest.TestCase):
         self.assertEqual(self.lib.s["base_rates"]["access"], [1, 1])
         with self.assertRaises(KeyError):
             self.lib.decide_reading("andrej", reading["id"], False)          # decided once
+
+    def test_a_reading_below_the_threshold_is_counted_not_shown(self):
+        # on the corpus, a model-only "concealed" was never right: about 0%
+        self.lib.receive(1, [Report(1, "u0", 30.0, readings=(("s0", "u0", "concealed", "B", "x"),))])
+        self.assertEqual([f for f in self.lib.facts() if f["decision"] == "reading"], [])
+        self.assertEqual(self.lib.s["readings_below"], {"concealed": 1})
+        self.assertTrue(self.lib.store.entries("reading-below"))             # logged
 
     def test_not_a_problem_only_teaches(self):
         self.lib.receive(1, [Report(1, "u0", 30.0, readings=(("s0", "u0", "take-out", "B", "x"),))])

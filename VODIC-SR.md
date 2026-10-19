@@ -165,3 +165,7 @@ potvrde koje ona potpisuje i potpisuju svoje izvještaje. Jedinice druge
 instalacije su tuđe dok ih čovjek ne spoji na oba kraja. Na Linuxu
 `packaging/triglav.service` pokreće `triglav serve` kao korisnički servis.
 Izdanja: `docs/RELEASE.md`; besplatan potpis za `.exe`: `docs/CODE-SIGNING.md`.
+
+Čitanja (ono što je pročitao samo model) stižu u inbox kad im je vjerovatnoća
+bar 20%; ostala se zapisuju i broje (`triglav status`). Physician uzima našeg
+agenta kad se peerovi 3 koraka zaredom slažu da je van 25-35.

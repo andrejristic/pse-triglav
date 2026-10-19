@@ -12,6 +12,7 @@ import os
 import sys
 from pathlib import Path
 
+from .core import constants as K
 from .core.pse_lang import GuardError
 from .shell.lock import SignatureError
 from .core.reading import RuleReader
@@ -212,6 +213,9 @@ def cmd_status(a, lib):
     ms = lib.s["missions"]
     print(f"our agents with a mission: {', '.join(sorted(ms)) or 'none'}; "
           f"without: {', '.join(sorted(set(lib.s['ours']) - set(ms))) or 'none'}")
+    below = lib.s["readings_below"]
+    print(f"readings below {int(100 * K.READING_THRESHOLD)}% (logged, not shown): "
+          + (", ".join(f"{c} {n}" for c, n in sorted(below.items())) or "none"))
     t = lib.s["textbook"]
     print(f"textbook: pinned {t['sha256'][:16]}..." if t else "textbook: not pinned -- nothing may be given to a stranger")
 

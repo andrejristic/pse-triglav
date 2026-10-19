@@ -168,3 +168,8 @@ certificates signed by it and sign their reports. Units of another
 installation are foreign until a human links the two on both ends. On Linux
 `packaging/triglav.service` runs `triglav serve` as a user service. Releases:
 `docs/RELEASE.md`; free code signing for the `.exe`: `docs/CODE-SIGNING.md`.
+
+Readings (what only the model read) reach the inbox when their probability is
+at least 20%; the rest are logged and counted (`triglav status`). The
+Physician takes one of ours after its peers agree for 3 consecutive steps that
+it is out of 25-35.

@@ -42,7 +42,7 @@ _DEFAULTS = {"kinds": {}, "ours": [], "agreements": {}, "operators": [], "stoppe
              "textbook": {"sha256": LOCKED_SHA256, "by": f"Andrej Ristic (locked v{LOCKED_VERSION})", "step": 0},
              "watched": {}, "makers": {}, "on_machine": [], "calls": {}, "notices": {},
              "asked": {}, "banned_makers": {}, "quarantine_n": 0, "outbox": [],
-             "linked": {}, "certs": {}, "base_rates": {}, "readings": {},
+             "linked": {}, "certs": {}, "base_rates": {}, "readings": {}, "readings_below": {},
              "settings": {"channel": "bus", "voice": "local"}}
 
 
@@ -517,9 +517,14 @@ class SharedLib:
                 if who in self.excluded:
                     continue
                 pr = evidence.probability(table, cat, tr, self.prior_of(cat))
-                self._decide(step, "reading", who, f"only the model read {cat}",
+                below = pr is not None and pr["p"] < K.READING_THRESHOLD
+                if below:
+                    self.s["readings_below"][cat] = self.s["readings_below"].get(cat, 0) + 1
+                self._decide(step, "reading-below" if below else "reading", who, f"only the model read {cat}",
                              {"category": cat, "trace": tr, "receiver": receiver, "text": text,
-                              "probability": pr, "seen_by": r.observer})
+                              "probability": pr, "seen_by": r.observer}, inbox=not below)
+                if below:
+                    continue
                 self.s["readings"][str(self._decided[-1]["id"])] = {
                     "who": who, "category": cat, "step": step, "open": True}
 

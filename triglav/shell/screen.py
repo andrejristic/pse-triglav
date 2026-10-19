@@ -62,7 +62,8 @@ def state(lib, operator: str | None) -> dict:
     return {"installation": lib.installation, "operator": operator,
             "rank": lib.rank(operator) if operator in s["operators"] else None,
             "log_ok": ok, "log_why": why, "textbook": (s["textbook"] or {}).get("sha256"),
-            "settings": lib.settings(), "agents": agents, "inbox": inbox}
+            "settings": lib.settings(), "agents": agents, "inbox": inbox,
+            "readings_below": sum(s["readings_below"].values())}
 
 
 class Interpreter:
