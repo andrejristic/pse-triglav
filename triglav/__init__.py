@@ -7,4 +7,4 @@ concludes; the Guardian stops enemies on our system or keeps a pusher away
 from ours; the Physician takes our own turned agents out of work; the voice
 tells the human, held at theta 30.
 """
-__version__ = "0.1.0"
+__version__ = "0.9.0"

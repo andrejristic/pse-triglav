@@ -42,6 +42,7 @@ jobs:
           --add-data "triglav/screen/index.html;triglav/screen"
           --add-data "triglav/screen/app.js;triglav/screen"
           --add-data "triglav/vendor/vid_input/defaults.toml;triglav/vendor/vid_input"
+          --add-data "triglav/core/evidence.json;triglav/core"
           --collect-submodules triglav
           --exclude-module triglav.shell.adapters
           packaging/triglav_entry.py
