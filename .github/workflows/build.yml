@@ -37,7 +37,7 @@ jobs:
         with: {python-version: "3.12"}
       - run: pip install "cryptography>=41" pyinstaller
       - run: >
-          pyinstaller --onefile --name triglav --console
+          pyinstaller --onefile --name triglav --console --paths .
           --add-data "triglav/keys/allowed_signers;triglav/keys"
           --add-data "triglav/screen/index.html;triglav/screen"
           --add-data "triglav/screen/app.js;triglav/screen"
